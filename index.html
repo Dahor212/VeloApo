@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VeloTimer">
+<meta name="theme-color" content="#0a0a0f">
+<title>VeloTimer</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f1a;
+    --bg3: #141428;
+    --panel: #12121f;
+    --border: #1e1e3a;
+    --accent: #00e5ff;
+    --accent2: #ff3d71;
+    --accent3: #a259ff;
+    --green: #00ff88;
+    --yellow: #ffdd00;
+    --text: #e8e8f0;
+    --text2: #7070a0;
+    --text3: #4a4a70;
+    --font-display: 'Exo 2', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+    --r: 8px;
+    --glow: 0 0 20px rgba(0,229,255,0.3);
+    --glow2: 0 0 20px rgba(255,61,113,0.3);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0,229,255,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 10% 80%, rgba(162,89,255,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen { 
+    display: none; 
+    min-height: 100vh; 
+    min-height: -webkit-fill-available;
+    position: relative; z-index: 1;
+    padding-bottom: 30px;
+  }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ===== HEADER ===== */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.9);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 800;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-sub { font-size: 11px; color: var(--text2); letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ===== BTN ===== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 24px; border: none; border-radius: var(--r);
+    font-family: var(--font-ui); font-size: 15px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+    transition: all 0.2s; position: relative; overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255,255,255,0.1); opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .btn:active::after { opacity: 1; }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    color: var(--bg); box-shadow: var(--glow);
+  }
+  .btn-danger {
+    background: linear-gradient(135deg, var(--accent2), #ff6b35);
+    color: white; box-shadow: var(--glow2);
+  }
+  .btn-ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .btn-ghost:active { border-color: var(--accent); color: var(--accent); }
+  .btn-success {
+    background: linear-gradient(135deg, var(--green), #00ccaa);
+    color: var(--bg);
+  }
+  .btn-block { width: 100%; }
+  .btn-lg { padding: 16px 32px; font-size: 17px; }
+  .btn-sm { padding: 8px 16px; font-size: 13px; }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+    position: relative; overflow: hidden;
+  }
+  .card-label {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text2); margin-bottom: 6px; font-family: var(--font-mono);
+  }
+  .card-value {
+    font-family: var(--font-mono); font-size: 28px; color: var(--accent);
+    line-height: 1;
+  }
+  .card-unit { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+  /* ===== HOME SCREEN ===== */
+  #screen-home {
+    padding: 0;
+  }
+  .home-hero {
+    padding: 40px 20px 30px;
+    text-align: center;
+  }
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: 42px; font-weight: 800;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent3) 50%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 6px;
+  }
+  .hero-sub { color: var(--text2); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; }
+
+  .routes-section { padding: 0 16px; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--text2); font-family: var(--font-mono);
+  }
+
+  .route-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+    margin-bottom: 10px; cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .route-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent3));
+    border-radius: 3px 0 0 3px;
+  }
+  .route-card:active { border-color: var(--accent); box-shadow: var(--glow); }
+  .route-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .route-name { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; }
+  .route-badge {
+    font-size: 10px; padding: 3px 8px; border-radius: 20px;
+    font-family: var(--font-mono); letter-spacing: 1px;
+  }
+  .badge-gpx { background: rgba(0,229,255,0.15); color: var(--accent); }
+  .badge-manual { background: rgba(162,89,255,0.15); color: var(--accent3); }
+  .route-stats {
+    display: flex; gap: 16px; margin-top: 10px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--text2);
+  }
+  .route-stat span { color: var(--text); font-weight: 600; }
+  .route-pb {
+    margin-top: 8px; font-size: 11px; color: var(--green);
+    font-family: var(--font-mono);
+  }
+
+  .empty-routes {
+    text-align: center; padding: 40px 20px;
+    color: var(--text3); font-size: 14px; line-height: 1.8;
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* ===== ADD ROUTE SCREEN ===== */
+  #screen-add { padding: 0; }
+  .form-body { padding: 20px 16px; flex: 1; }
+
+  .tab-switch {
+    display: flex; background: var(--bg2); border-radius: 10px;
+    padding: 4px; gap: 4px; margin-bottom: 24px;
+  }
+  .tab-btn {
+    flex: 1; padding: 10px; border: none; border-radius: 7px;
+    font-family: var(--font-ui); font-size: 14px; font-weight: 700;
+    letter-spacing: 1px; cursor: pointer;
+    background: transparent; color: var(--text2);
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--panel); color: var(--accent);
+    border: 1px solid var(--border); box-shadow: var(--glow);
+  }
+
+  .form-group { margin-bottom: 20px; }
+  .form-label {
+    display: block; font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--text2);
+    margin-bottom: 8px; font-family: var(--font-mono);
+  }
+  .form-input {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 12px 14px;
+    color: var(--text); font-family: var(--font-ui); font-size: 16px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+
+  .gpx-drop {
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 30px 20px; text-align: center; cursor: pointer;
+    transition: all 0.2s; background: var(--bg2);
+    position: relative; overflow: hidden;
+  }
+  .gpx-drop:active { border-color: var(--accent); background: rgba(0,229,255,0.05); }
+  .gpx-drop.loaded { border-color: var(--green); border-style: solid; }
+  .gpx-icon { font-size: 36px; margin-bottom: 10px; }
+  .gpx-text { font-size: 14px; color: var(--text2); line-height: 1.6; }
+  .gpx-loaded { color: var(--green); font-weight: 700; font-size: 15px; }
+  #gpx-file-input { display: none; }
+
+  .checkpoint-list { margin-top: 8px; }
+  .checkpoint-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px;
+  }
+  .cp-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    color: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .cp-km { 
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--font-mono); font-size: 15px;
+    width: 60px;
+  }
+  .cp-label {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text2); font-family: var(--font-ui); font-size: 14px;
+  }
+  .cp-del {
+    background: transparent; border: none; color: var(--accent2);
+    font-size: 18px; cursor: pointer; padding: 4px; line-height: 1;
+  }
+
+  .add-cp-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; border: 1px dashed var(--border);
+    border-radius: var(--r); padding: 10px 14px; width: 100%;
+    color: var(--text2); font-family: var(--font-ui); font-size: 14px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .add-cp-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  /* ===== RIDE SCREEN ===== */
+  #screen-ride { padding: 0; background: var(--bg); }
+
+  .ride-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.95);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  .ride-route-name {
+    font-size: 13px; color: var(--text2); letter-spacing: 2px;
+    text-transform: uppercase; font-family: var(--font-mono);
+  }
+  .ride-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--text3);
+    transition: background 0.3s;
+  }
+  .status-dot.running { background: var(--green); animation: pulse 1s infinite; }
+  .status-dot.paused { background: var(--yellow); }
+  @keyframes pulse {
+    0%,100% { opacity:1; } 50% { opacity:0.3; }
+  }
+
+  .big-timer {
+    padding: 24px 20px 16px;
+    text-align: center;
+    position: relative;
+  }
+  .timer-display {
+    font-family: var(--font-mono);
+    font-size: 64px; font-weight: 400;
+    letter-spacing: 4px; line-height: 1;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(0,229,255,0.5);
+    transition: color 0.3s;
+  }
+  .timer-display.paused { color: var(--yellow); text-shadow: 0 0 30px rgba(255,221,0,0.5); }
+  .timer-ms {
+    font-size: 28px; color: var(--text2);
+  }
+
+  .ghost-indicator {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 13px;
+    margin-top: 6px;
+    min-height: 22px;
+  }
+  .ghost-ahead { color: var(--green); }
+  .ghost-behind { color: var(--accent2); }
+  .ghost-icon { font-size: 16px; }
+
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; padding: 0 16px 16px;
+  }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .stat-label {
+    font-size: 10px; letter-spacing: 2px; color: var(--text2);
+    text-transform: uppercase; font-family: var(--font-mono);
+    margin-bottom: 4px;
+  }
+  .stat-val {
+    font-family: var(--font-mono); font-size: 22px; color: var(--text);
+    line-height: 1;
+  }
+  .stat-unit { font-size: 11px; color: var(--text3); }
+
+  /* Progress bar */
+  .progress-section { padding: 0 16px 16px; }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--text2); font-family: var(--font-mono);
+    margin-bottom: 6px;
+  }
+  .progress-bar {
+    height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    transition: width 0.5s ease;
+    position: relative;
+    box-shadow: 0 0 10px rgba(0,229,255,0.5);
+  }
+  .progress-fill::after {
+    content: ''; position: absolute; right: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* Checkpoints */
+  .checkpoints-section { padding: 0 16px 16px; }
+  .cp-header {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text2); font-family: var(--font-mono); margin-bottom: 10px;
+  }
+
+  .cp-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel); transition: all 0.3s;
+    position: relative; overflow: hidden;
+  }
+  .cp-row.completed {
+    border-color: rgba(0,255,136,0.3);
+    background: rgba(0,255,136,0.05);
+  }
+  .cp-row.next-up {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(0,229,255,0.2);
+    animation: nextPulse 2s infinite;
+  }
+  @keyframes nextPulse {
+    0%,100% { box-shadow: 0 0 10px rgba(0,229,255,0.2); }
+    50% { box-shadow: 0 0 20px rgba(0,229,255,0.4); }
+  }
+
+  .cp-circle {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; transition: all 0.3s;
+  }
+  .cp-row.completed .cp-circle {
+    background: var(--green); border-color: var(--green); color: var(--bg);
+  }
+  .cp-row.next-up .cp-circle {
+    border-color: var(--accent); color: var(--accent);
+  }
+
+  .cp-info { flex: 1; min-width: 0; }
+  .cp-name { font-size: 14px; font-weight: 600; }
+  .cp-dist { font-size: 11px; color: var(--text2); font-family: var(--font-mono); }
+
+  .cp-time-col { text-align: right; }
+  .cp-time { font-family: var(--font-mono); font-size: 15px; color: var(--green); }
+  .cp-split { font-size: 11px; color: var(--text2); }
+  .cp-ghost-diff {
+    font-size: 11px; font-family: var(--font-mono);
+  }
+  .cp-ghost-diff.faster { color: var(--green); }
+  .cp-ghost-diff.slower { color: var(--accent2); }
+
+  .cp-tap-btn {
+    padding: 8px 14px; border: none; border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    color: var(--bg); font-family: var(--font-ui); font-size: 13px;
+    font-weight: 700; cursor: pointer; letter-spacing: 1px;
+    white-space: nowrap; flex-shrink: 0;
+    box-shadow: var(--glow);
+  }
+
+  /* Elevation mini chart */
+  .elevation-mini { padding: 0 16px 16px; }
+  .elevation-mini canvas { 
+    width: 100%; height: 80px; display: block;
+    border-radius: 8px;
+  }
+
+  /* Controls */
+  .ride-controls {
+    padding: 16px; display: flex; gap: 10px;
+    position: sticky; bottom: 0;
+    background: rgba(10,10,15,0.95); backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border);
+  }
+  .btn-huge {
+    flex: 2; padding: 18px; font-size: 18px; border-radius: 12px;
+    font-weight: 800; letter-spacing: 2px;
+  }
+  .btn-side {
+    flex: 1; padding: 18px 10px; font-size: 13px; border-radius: 12px;
+  }
+
+  /* ===== RESULTS SCREEN ===== */
+  #screen-results { padding: 0; }
+  .results-body { padding: 20px 16px; flex: 1; }
+
+  .result-hero {
+    text-align: center; padding: 30px 0 20px;
+    border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  .result-label {
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--text2); font-family: var(--font-mono); margin-bottom: 8px;
+  }
+  .result-time {
+    font-family: var(--font-mono); font-size: 56px; color: var(--accent);
+    text-shadow: 0 0 30px rgba(0,229,255,0.5); line-height: 1;
+  }
+  .result-pb {
+    margin-top: 10px; font-size: 14px; font-weight: 700;
+    padding: 6px 16px; border-radius: 20px; display: inline-block;
+  }
+  .result-pb.new-pb { background: rgba(0,255,136,0.15); color: var(--green); }
+  .result-pb.no-pb { background: rgba(114,114,160,0.15); color: var(--text2); }
+
+  .splits-table { width: 100%; border-collapse: collapse; }
+  .splits-table th {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text2); font-family: var(--font-mono);
+    text-align: left; padding: 0 0 10px; border-bottom: 1px solid var(--border);
+  }
+  .splits-table th:not(:first-child) { text-align: right; }
+  .splits-table td {
+    padding: 12px 0; border-bottom: 1px solid rgba(30,30,58,0.5);
+    font-family: var(--font-mono); font-size: 14px;
+    vertical-align: middle;
+  }
+  .splits-table td:not(:first-child) { text-align: right; }
+  .split-name { font-family: var(--font-ui); font-size: 14px; }
+  .split-diff { font-size: 12px; }
+  .split-diff.faster { color: var(--green); }
+  .split-diff.slower { color: var(--accent2); }
+  .split-diff.no-ref { color: var(--text3); }
+
+  /* ===== ELEVATION CHART ===== */
+  .elev-section { padding: 0 16px 20px; }
+  .elev-canvas-wrap { border-radius: 12px; overflow: hidden; background: var(--bg2); }
+  .elev-canvas-wrap canvas { display: block; }
+
+  /* Scrollable content area */
+  .scroll-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: var(--bg);
+    padding: 10px 20px; border-radius: 20px;
+    font-family: var(--font-ui); font-weight: 700; font-size: 14px;
+    z-index: 1000; pointer-events: none;
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 1.5s forwards;
+  }
+  @keyframes toastIn { from { opacity:0; transform: translateX(-50%) translateY(10px); } }
+  @keyframes toastOut { to { opacity:0; transform: translateX(-50%) translateY(-10px); } }
+
+  /* Divider */
+  .divider {
+    height: 1px; background: var(--border); margin: 16px 0;
+  }
+
+  /* Confirm modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8); z-index: 200;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-sheet {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 24px 20px 40px; width: 100%; max-width: 500px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .modal-sub { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+  .modal-btns { display: flex; gap: 10px; }
+
+  /* PB ribbon */
+  .pb-ribbon {
+    position: absolute; top: 10px; right: -20px;
+    background: var(--green); color: var(--bg);
+    font-size: 9px; font-weight: 700; letter-spacing: 1px;
+    padding: 4px 28px; transform: rotate(45deg);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SCREEN: HOME
+     ============================================================ -->
+<div id="screen-home" class="screen active">
+  <div class="app-header">
+    <div>
+      <div class="logo">VELOTIMER</div>
+      <div class="header-sub">Cyklo trenažér</div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="showScreen('add')">+ Trasa</button>
+  </div>
+  <div class="scroll-content" style="padding:16px;">
+    <div class="section-header" style="margin-top:8px;">
+      <div class="section-title">Moje trasy</div>
+    </div>
+    <div id="routes-list">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: ADD ROUTE
+     ============================================================ -->
+<div id="screen-add" class="screen">
+  <div class="app-header">
+    <div>
+      <div class="logo" style="font-size:18px;">Nová trasa</div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="showScreen('home')">Zpět</button>
+  </div>
+  <div class="scroll-content">
+    <div class="form-body">
+      <div class="tab-switch">
+        <button class="tab-btn active" onclick="switchAddTab('manual')" id="tab-manual">✏️ Ručně</button>
+        <button class="tab-btn" onclick="switchAddTab('gpx')" id="tab-gpx">📁 GPX</button>
+      </div>
+
+      <!-- Manual tab -->
+      <div id="add-manual">
+        <div class="form-group">
+          <label class="form-label">Název trasy</label>
+          <input type="text" class="form-input" id="m-name" placeholder="např. Alpe d'Huez">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Délka (km)</label>
+            <input type="number" class="form-input" id="m-dist" placeholder="21.4" min="0.1" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Celkové stoupání (m)</label>
+            <input type="number" class="form-input" id="m-elev" placeholder="1090" min="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Průměrný sklon (%)</label>
+            <input type="number" class="form-input" id="m-grade" placeholder="7.8" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Výchozí nadm. výška (m)</label>
+            <input type="number" class="form-input" id="m-baseelev" placeholder="730" min="0">
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="form-label" style="margin-bottom:12px;">Checkpointy (mezičasy)</div>
+        <div class="checkpoint-list" id="cp-list"></div>
+        <button class="add-cp-btn" onclick="addCheckpoint()">
+          <span style="font-size:18px; color: var(--accent);">+</span>
+          Přidat checkpoint
+        </button>
+
+        <div style="margin-top:24px;">
+          <button class="btn btn-primary btn-block btn-lg" onclick="saveManualRoute()">Uložit trasu</button>
+        </div>
+      </div>
+
+      <!-- GPX tab -->
+      <div id="add-gpx" style="display:none;">
+        <div class="gpx-drop" onclick="document.getElementById('gpx-file-input').click()" id="gpx-drop">
+          <input type="file" id="gpx-file-input" accept=".gpx" onchange="loadGPX(this)">
+          <div class="gpx-icon">📂</div>
+          <div class="gpx-text" id="gpx-text">
+            Klikni pro výběr GPX souboru<br>
+            <span style="font-size:12px; color: var(--text3);">(Komoot, Strava, Garmin...)</span>
+          </div>
+        </div>
+
+        <div id="gpx-preview" style="display:none; margin-top:20px;">
+          <div class="elev-section" style="padding: 0 0 16px;">
+            <div class="card-label" style="margin-bottom:8px;">Výškový profil</div>
+            <div class="elev-canvas-wrap" style="height:120px;">
+              <canvas id="gpx-elev-canvas" height="120"></canvas>
+            </div>
+          </div>
+          <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+            <div class="card" style="flex:1; min-width:120px;">
+              <div class="card-label">Délka</div>
+              <div class="card-value" id="gpx-dist-val" style="font-size:22px;">—</div>
+              <div class="card-unit">km</div>
+            </div>
+            <div class="card" style="flex:1; min-width:120px;">
+              <div class="card-label">Stoupání</div>
+              <div class="card-value" id="gpx-elev-val" style="font-size:22px;">—</div>
+              <div class="card-unit">m</div>
+            </div>
+            <div class="card" style="flex:1; min-width:120px;">
+              <div class="card-label">Body trasy</div>
+              <div class="card-value" id="gpx-pts-val" style="font-size:22px;">—</div>
+              <div class="card-unit">GPS body</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Název trasy</label>
+            <input type="text" class="form-input" id="gpx-name" placeholder="Název...">
+          </div>
+
+          <div class="form-label" style="margin-bottom:12px;">Checkpointy (mezičasy)</div>
+          <div class="checkpoint-list" id="gpx-cp-list"></div>
+          <button class="add-cp-btn" onclick="addCheckpointGPX()">
+            <span style="font-size:18px; color: var(--accent);">+</span>
+            Přidat checkpoint
+          </button>
+
+          <div style="margin-top:24px;">
+            <button class="btn btn-primary btn-block btn-lg" onclick="saveGPXRoute()">Uložit trasu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: RIDE
+     ============================================================ -->
+<div id="screen-ride" class="screen">
+  <div class="ride-header">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="ride-route-name" id="ride-route-name">—</div>
+      <div class="ride-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text" style="font-size:12px; color: var(--text2); font-family: var(--font-mono);">PŘIPRAVENO</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-content">
+    <!-- Timer -->
+    <div class="big-timer">
+      <div class="timer-display" id="timer-display">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
+      <div class="ghost-indicator" id="ghost-indicator"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Čas jízdy</div>
+        <div class="stat-val" id="s-elapsed">0:00</div>
+        <div class="stat-unit">mm:ss</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Průběh</div>
+        <div class="stat-val" id="s-progress">0%</div>
+        <div class="stat-unit">splněno</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Průměr. tempo</div>
+        <div class="stat-val" id="s-avgpace">—</div>
+        <div class="stat-unit">min/km</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Odhadovaný čas</div>
+        <div class="stat-val" id="s-eta">—</div>
+        <div class="stat-unit">do cíle</div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+      <div class="progress-label">
+        <span>Start</span>
+        <span id="progress-km">0 / 0 km</span>
+        <span>Cíl</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Elevation mini -->
+    <div class="elevation-mini" id="elev-mini-wrap">
+      <div class="card-label" style="margin-bottom:6px;">Výškový profil</div>
+      <canvas id="ride-elev-canvas" height="80"></canvas>
+    </div>
+
+    <!-- Checkpoints -->
+    <div class="checkpoints-section">
+      <div class="cp-header">Checkpointy</div>
+      <div id="ride-checkpoints"></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="ride-controls">
+    <button class="btn btn-danger btn-side" id="btn-abort" onclick="confirmAbort()">■ Konec</button>
+    <button class="btn btn-primary btn-huge" id="btn-start-pause" onclick="toggleTimer()">▶ START</button>
+    <button class="btn btn-ghost btn-side" id="btn-reset-ride" onclick="resetRide()" style="display:none;">↺ Reset</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: RESULTS
+     ============================================================ -->
+<div id="screen-results" class="screen">
+  <div class="app-header">
+    <div><div class="logo" style="font-size:18px;">Výsledky</div></div>
+    <button class="btn btn-ghost btn-sm" onclick="showScreen('home')">Domů</button>
+  </div>
+  <div class="scroll-content">
+    <div class="results-body">
+      <div class="result-hero">
+        <div class="result-label" id="res-route-label">Trasa</div>
+        <div class="result-time" id="res-time">0:00:00</div>
+        <div class="result-pb" id="res-pb-badge"></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div class="card-label" style="margin-bottom:12px;">Mezičasy & porovnání</div>
+        <table class="splits-table" id="splits-table">
+          <thead>
+            <tr>
+              <th>Checkpoint</th>
+              <th>Čas</th>
+              <th>Split</th>
+              <th>vs PB</th>
+            </tr>
+          </thead>
+          <tbody id="splits-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="elev-section" style="padding:0 0 20px;" id="res-elev-wrap">
+        <div class="card-label" style="margin-bottom:8px;">Výškový profil</div>
+        <div class="elev-canvas-wrap"><canvas id="res-elev-canvas" height="140"></canvas></div>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn btn-primary btn-block btn-lg" onclick="startRideAgain()">↺ Jet znovu</button>
+      <div style="height:12px;"></div>
+      <button class="btn btn-ghost btn-block" onclick="showScreen('home')">Zpět na trasy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal confirm -->
+<div class="modal-overlay" id="modal-abort">
+  <div class="modal-sheet">
+    <div class="modal-title">Ukončit jízdu?</div>
+    <div class="modal-sub">Čas bude ztracen. Pokud jste dojeli do cíle, použijte tlačítko Cíl.</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" style="flex:1;" onclick="closeModal()">Pokračovat</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="abortRide()">Ukončit</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
