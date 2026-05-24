@@ -27,7 +27,8 @@ let curScreen = 'home';
 let statsPeriod = 'all';
 let selectedWallpaper = DEFAULT_WALL;
 let selectedWallpaperGPX = DEFAULT_WALL;
-let navStack = [];  // navigation history for goBack()
+let navStack = [];   // navigation history for goBack()
+let sortMode  = 'default'; // 'default' | 'name' | 'dist' | 'rides'
 
 // ── RIDE STATE ────────────────────────────────────
 let rs = {
@@ -43,8 +44,14 @@ let rafId = null;
 // ════════════════════════════════════════════════
 function showScreen(name) {
   curScreen = name;
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active', 'slide-in');
+  });
+  const el = document.getElementById('screen-' + name);
+  el.classList.add('active');
+  // Trigger slide-in animation (reflow trick)
+  void el.offsetWidth;
+  el.classList.add('slide-in');
   updateBackground();
   // mark drawer item (splash counts as home for highlighting)
   const activeNav = name === 'splash' ? 'home' : name;
@@ -164,7 +171,13 @@ function renderHome() {
     </div>`;
 
   const el = document.getElementById('home-routes');
-  document.getElementById('home-routes-count').textContent = `${routes.length} ${routes.length===1?'trasa':routes.length<5?'trasy':'tras'}`;
+  const cnt = routes.length;
+  document.getElementById('home-routes-count').textContent = `${cnt} ${cnt===1?'trasa':cnt<5?'trasy':'tras'}`;
+
+  // Update sort button label
+  const sortLabels = { default:'📅 Nové', name:'🔤 Název', dist:'📏 Km', rides:'🏆 Jízdy' };
+  const sortBtn = document.getElementById('home-sort-btn');
+  if (sortBtn) sortBtn.textContent = sortLabels[sortMode] || '↕';
 
   if (!routes.length) {
     el.innerHTML = `<div class="empty-state">
@@ -175,7 +188,18 @@ function renderHome() {
     return;
   }
 
-  el.innerHTML = routes.map((r, i) => {
+  // Build sorted index array (we must keep original index for openDetail/openEdit)
+  const indexed = routes.map((r, i) => ({ r, i }));
+  if (sortMode === 'name') {
+    indexed.sort((a, b) => a.r.name.localeCompare(b.r.name, 'cs'));
+  } else if (sortMode === 'dist') {
+    indexed.sort((a, b) => (b.r.totalDist||0) - (a.r.totalDist||0));
+  } else if (sortMode === 'rides') {
+    indexed.sort((a, b) => (b.r.records?.length||0) - (a.r.records?.length||0));
+  }
+  // default = insertion order (newest last = keep as-is, or reverse)
+
+  el.innerHTML = indexed.map(({ r, i }) => {
     const pb   = r.records?.length ? r.records[0] : null;
     const wall = wallpaperUrl(r.wallpaper || DEFAULT_WALL);
     const dist = r.totalDist ? r.totalDist.toFixed(1) : '—';
@@ -204,6 +228,13 @@ function renderHome() {
       </div>
     </div>`;
   }).join('');
+}
+
+function cycleSortMode() {
+  const modes = ['default', 'name', 'dist', 'rides'];
+  const idx = modes.indexOf(sortMode);
+  sortMode = modes[(idx + 1) % modes.length];
+  renderHome();
 }
 
 // ════════════════════════════════════════════════
@@ -645,6 +676,9 @@ function buildTVEntries(r) {
     let refTime = null;
     if (rs.finished) {
       refTime = rec.totalMs;
+    } else if (nextCpIdx >= cps.length) {
+      // All CPs passed, heading to finish — compare to their total time
+      refTime = rec.totalMs ?? null;
     } else {
       // Use their real split at the next checkpoint we're headed to
       refTime = rec.checkpoints?.[nextCpIdx]?.hitTime ?? null;
@@ -783,8 +817,16 @@ function hitCP(idx) {
   rs.cps[idx].splitMs = idx===0 ? ms : (rs.cps[idx-1].hitTime!==null ? ms - rs.cps[idx-1].hitTime : null);
   rs.cpIdx = idx + 1;
   rs._tvLastUpdate = -1; // force immediate TV board refresh
-  if (navigator.vibrate) navigator.vibrate(100);
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
   toast(`✓ CP${idx+1}: ${fmtTime(ms)}`);
+  // CP pulse animation on timer
+  const timerEl = document.getElementById('timer-main');
+  if (timerEl) {
+    timerEl.classList.remove('cp-hit');
+    void timerEl.offsetWidth; // reflow
+    timerEl.classList.add('cp-hit');
+    setTimeout(() => timerEl.classList.remove('cp-hit'), 900);
+  }
   // Update progress marker to done
   const marker = document.querySelector(`#prog-markers .prog-cp-marker[data-km="${rs.cps[idx].km}"]`);
   if (marker) marker.classList.add('done');
