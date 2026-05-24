@@ -76,7 +76,7 @@ jobs:
         run: |
           cd worker
           set +e   # nezastaví script při chybě — vždy vidíme output
-          npx wrangler deploy --log-level debug
+          npx wrangler deploy
           EXIT=$?
           set -e
           echo "=== wrangler exit code: $EXIT ==="
