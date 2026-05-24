@@ -1404,7 +1404,224 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   };
 }
 
+// ════════════════════════════════════════════════
+//  STRAVA INTEGRATION
+// ════════════════════════════════════════════════
+
+// Called once on app start — check if Strava is linked, update UI
+async function checkStravaOnStart() {
+  if (!STRAVA_WORKER_URL || STRAVA_WORKER_URL.includes('YOUR_SUBDOMAIN')) return;
+  // Handle OAuth redirect return (?strava=connected or ?strava=error)
+  const params = new URLSearchParams(location.search);
+  if (params.get('strava') === 'connected') {
+    history.replaceState({}, '', location.pathname);
+    toast('✅ Strava připojena!');
+  } else if (params.get('strava') === 'error') {
+    history.replaceState({}, '', location.pathname);
+    toast('❌ Strava připojení selhalo');
+  }
+  try {
+    const res = await fetch(`${STRAVA_WORKER_URL}/auth/status`);
+    const data = await res.json();
+    stravaConnected = data.connected;
+    updateStravaDrawerItem(data);
+    if (data.connected) {
+      // Silently check for new activities (don't block startup)
+      checkNewStravaActivities();
+    }
+  } catch (e) {
+    // Worker unreachable — ignore silently
+    console.warn('Strava worker unreachable:', e.message);
+  }
+}
+
+function updateStravaDrawerItem(status) {
+  const el = document.getElementById('strava-drawer-item');
+  if (!el) return;
+  if (status.connected) {
+    el.innerHTML = `<span class="di-ico">🟠</span> Strava · ${status.athleteName || 'Připojeno'}<span class="di-badge">✓</span>`;
+  } else {
+    el.innerHTML = `<span class="di-ico">🟠</span> Připojit Strava`;
+  }
+}
+
+function openStravaConnect() {
+  closeDrawer();
+  if (stravaConnected) {
+    navTo('strava');
+  } else {
+    window.location.href = `${STRAVA_WORKER_URL}/auth/login`;
+  }
+}
+
+async function disconnectStrava() {
+  try {
+    await fetch(`${STRAVA_WORKER_URL}/auth/logout`, { method: 'DELETE' });
+  } catch(e) {}
+  stravaConnected = false;
+  updateStravaDrawerItem({ connected: false });
+  toast('Strava odpojena');
+  navTo('home');
+}
+
+// Check for Strava activities newer than the most recent imported one
+async function checkNewStravaActivities() {
+  try {
+    const res  = await fetch(`${STRAVA_WORKER_URL}/api/activities?per_page=20`);
+    const data = await res.json();
+    if (!data.activities?.length) return;
+    const imported = getImportedStravaIds();
+    const newOnes  = data.activities.filter(a => !imported.has(String(a.id)));
+    if (newOnes.length > 0) {
+      // Show badge on Strava drawer item
+      const el = document.getElementById('strava-drawer-item');
+      if (el) {
+        const badge = el.querySelector('.di-badge');
+        if (badge) badge.textContent = `${newOnes.length} nových`;
+      }
+      toast(`🟠 ${newOnes.length} nových Strava jízd k importu`);
+    }
+  } catch(e) {
+    console.warn('Strava sync check failed:', e.message);
+  }
+}
+
+function getImportedStravaIds() {
+  const ids = new Set();
+  routes.forEach(r => {
+    (r.records || []).forEach(rec => {
+      if (rec.stravaId) ids.add(String(rec.stravaId));
+    });
+  });
+  return ids;
+}
+
+async function renderStravaScreen() {
+  const screen = document.getElementById('screen-strava');
+  const content = document.getElementById('strava-content');
+  if (!content) return;
+  content.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--text2)">⏳ Načítám aktivity…</div>`;
+  showScreen('strava');
+
+  if (!stravaConnected) {
+    content.innerHTML = `
+      <div style="padding:40px 20px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:16px;">🟠</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Strava není připojena</div>
+        <div style="font-size:14px;color:var(--text2);margin-bottom:24px;">Připoj svůj Strava účet pro import jízd</div>
+        <button class="btn btn-blue btn-lg" onclick="window.location.href='${STRAVA_WORKER_URL}/auth/login'">Připojit Strava</button>
+      </div>`;
+    return;
+  }
+
+  try {
+    const res  = await fetch(`${STRAVA_WORKER_URL}/api/activities?per_page=30`);
+    const data = await res.json();
+    if (data.error === 'not_authenticated') {
+      stravaConnected = false;
+      renderStravaScreen();
+      return;
+    }
+    renderStravaActivities(data.activities || []);
+  } catch(e) {
+    content.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--red)">❌ Chyba při načítání aktivit<br><small>${e.message}</small></div>`;
+  }
+}
+
+function renderStravaActivities(activities) {
+  const content = document.getElementById('strava-content');
+  const imported = getImportedStravaIds();
+
+  if (!activities.length) {
+    content.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--text2)">Žádné jízdy na Stravě</div>`;
+    return;
+  }
+
+  content.innerHTML = activities.map(a => {
+    const alreadyImported = imported.has(String(a.id));
+    const date = new Date(a.date).toLocaleDateString('cs-CZ', { day:'2-digit', month:'2-digit', year:'2-digit' });
+    const dur  = fmtTime(a.durationMs);
+    return `
+      <div class="strava-item ${alreadyImported ? 'imported' : ''}" id="sa-${a.id}">
+        <div class="strava-item-left">
+          <div class="strava-item-name">${escHtml(a.name)}</div>
+          <div class="strava-item-meta">
+            <span>📅 ${date}</span>
+            <span>📏 ${a.distKm} km</span>
+            <span>⏱ ${dur}</span>
+            <span>⛰ +${a.elevM} m</span>
+          </div>
+        </div>
+        <div class="strava-item-right">
+          ${alreadyImported
+            ? '<span class="strava-badge-done">✓ Importováno</span>'
+            : `<button class="btn btn-blue btn-sm" onclick="showImportModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">Importovat</button>`
+          }
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// Show route-picker modal and confirm import
+function showImportModal(activity) {
+  if (!routes.length) {
+    toast('❌ Nejdříve vytvoř aspoň jednu trasu');
+    return;
+  }
+  // Populate modal
+  document.getElementById('import-modal-name').textContent = activity.name;
+  document.getElementById('import-modal-meta').textContent =
+    `${activity.distKm} km · ${fmtTime(activity.durationMs)} · +${activity.elevM} m`;
+
+  const sel = document.getElementById('import-modal-route-sel');
+  sel.innerHTML = routes.map((r, i) => {
+    const diff = r.totalDist ? Math.abs(r.totalDist - activity.distKm) : 999;
+    const match = diff < 1 ? ' ✓' : diff < 3 ? ' ~' : '';
+    return `<option value="${i}">${escHtml(r.name)} (${(r.totalDist||0).toFixed(1)} km)${match}</option>`;
+  }).join('');
+
+  // Store activity data on confirm button
+  document.getElementById('import-modal-confirm').onclick = () => confirmImport(activity, parseInt(sel.value));
+  document.getElementById('modal-strava-import').classList.add('open');
+}
+
+function confirmImport(activity, routeIdx) {
+  closeModal('modal-strava-import');
+  const r = routes[routeIdx];
+  if (!r) return;
+
+  // Create record (no checkpoint splits available from Strava)
+  const record = {
+    date:        activity.date,
+    totalMs:     activity.durationMs,
+    stravaId:    activity.id,
+    stravaName:  activity.name,
+    distKm:      activity.distKm,
+    elevM:       activity.elevM,
+    checkpoints: (r.checkpoints || []).map(cp => ({ km: cp.km, name: cp.name, hitTime: null, splitMs: null })),
+  };
+
+  if (!r.records) r.records = [];
+  // Insert sorted by totalMs ascending (best time first)
+  r.records.push(record);
+  r.records.sort((a, b) => a.totalMs - b.totalMs);
+  saveRoutes();
+
+  // Mark item as imported in UI
+  const el = document.getElementById(`sa-${activity.id}`);
+  if (el) {
+    el.classList.add('imported');
+    el.querySelector('.strava-item-right').innerHTML = '<span class="strava-badge-done">✓ Importováno</span>';
+  }
+  toast(`✅ Jízda importována do „${r.name}"`);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── INIT ──────────────────────────────────────────
 curScreen = 'splash';
 renderSplash();
 updateBackground();
+checkStravaOnStart();
