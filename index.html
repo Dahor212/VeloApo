@@ -1644,9 +1644,258 @@ body {
   60%  { opacity: 1;  transform: translateX(-50%) scale(1) translateY(0); }
   100% { opacity: 0;  transform: translateX(-50%) scale(0.9) translateY(-30px); }
 }
+
+/* ═══════════════════════════════════
+   SETTINGS SCREEN
+═══════════════════════════════════ */
+.settings-section { padding: 0 16px; margin-bottom: 24px; }
+.settings-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3); padding: 16px 0 8px; margin: 0;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; margin: 0 -16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-lbl { font-size: 14px; font-weight: 600; }
+.settings-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.toggle-switch {
+  width: 48px; height: 26px; border-radius: 13px;
+  background: rgba(255,255,255,0.12); position: relative;
+  cursor: pointer; transition: background 0.3s; flex-shrink: 0;
+  border: none; outline: none;
+}
+.toggle-switch.on { background: var(--blue); }
+.toggle-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%; background: white;
+  transition: transform 0.3s; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.toggle-switch.on::after { transform: translateX(22px); }
+.settings-inp {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; color: #fff; padding: 6px 10px;
+  font-size: 14px; width: 80px; text-align: right;
+}
+.color-swatch {
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  border: 3px solid transparent; transition: border-color 0.2s;
+}
+.color-swatch.active { border-color: white; }
+
+/* ═══════════════════════════════════
+   GARAGE / BIKES
+═══════════════════════════════════ */
+.bike-card {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg); padding: 16px; margin-bottom: 12px;
+  backdrop-filter: blur(12px);
+}
+.bike-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bike-icon { font-size: 32px; }
+.bike-name { font-size: 17px; font-weight: 800; }
+.bike-brand { font-size: 12px; color: var(--text2); }
+.bike-km { font-size: 13px; font-family: var(--mono); color: var(--blue); font-weight: 700; }
+.component-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.05);
+}
+.comp-name { flex: 1; font-size: 13px; }
+.comp-bar-bg { width: 80px; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.comp-bar { height: 100%; border-radius: 3px; transition: width 0.5s; }
+.comp-pct { font-size: 11px; font-family: var(--mono); width: 36px; text-align: right; }
+.comp-warn { color: #FF5566; animation: blink 1s infinite; }
+
+/* ═══════════════════════════════════
+   HEAT CALENDAR
+═══════════════════════════════════ */
+.heat-calendar {
+  display: grid; grid-template-columns: repeat(53, 1fr);
+  gap: 2px; padding: 4px;
+}
+.heat-cell {
+  width: 100%; aspect-ratio: 1; border-radius: 2px;
+  background: rgba(255,255,255,0.05);
+  transition: background 0.3s;
+}
+.heat-cell.h1 { background: rgba(75,158,255,0.25); }
+.heat-cell.h2 { background: rgba(75,158,255,0.50); }
+.heat-cell.h3 { background: rgba(75,158,255,0.75); }
+.heat-cell.h4 { background: rgba(75,158,255,1.00); }
+.heat-cell.today { outline: 2px solid white; outline-offset: 1px; }
+.heat-months {
+  display: flex; font-size: 9px; color: var(--text3);
+  padding: 2px 4px; gap: 0;
+}
+
+/* ═══════════════════════════════════
+   PERSONAL RECORDS
+═══════════════════════════════════ */
+.pr-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; padding: 0 16px;
+}
+.pr-card {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 14px; text-align: center;
+  backdrop-filter: blur(10px);
+}
+.pr-ico { font-size: 24px; margin-bottom: 6px; }
+.pr-val { font-size: 22px; font-weight: 900; font-family: var(--mono); }
+.pr-lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.pr-date { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 4px; }
+
+/* ═══════════════════════════════════
+   TRAINING CALENDAR
+═══════════════════════════════════ */
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 4px; padding: 0 16px;
+}
+.cal-day-hdr {
+  text-align: center; font-size: 10px; color: var(--text3);
+  padding: 4px 0; text-transform: uppercase;
+}
+.cal-day {
+  aspect-ratio: 1; border-radius: 8px; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+  font-size: 12px; cursor: pointer; position: relative;
+  transition: background 0.2s;
+  background: rgba(255,255,255,0.03);
+}
+.cal-day:hover { background: rgba(255,255,255,0.08); }
+.cal-day.today { background: rgba(75,158,255,0.2); font-weight: 800; }
+.cal-day.planned { background: rgba(255,215,0,0.12); }
+.cal-day.planned::after { content:'•'; position:absolute; bottom:2px; font-size:8px; color:#FFD700; }
+.cal-day.completed { background: rgba(76,175,80,0.15); }
+.cal-day.completed::after { content:'✓'; position:absolute; bottom:2px; font-size:8px; color:#4CAF50; }
+.cal-day.other-month { opacity: 0.3; }
+
+/* ═══════════════════════════════════
+   WORKOUT CARDS
+═══════════════════════════════════ */
+.workout-card {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 14px;
+}
+.workout-icon { font-size: 28px; flex-shrink: 0; }
+.workout-info { flex: 1; }
+.workout-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.workout-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
+.workout-bars {
+  display: flex; gap: 2px; align-items: flex-end;
+  height: 30px; margin-top: 6px;
+}
+.workout-seg-bar {
+  flex: 1; border-radius: 2px; min-height: 4px;
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════
+   WEATHER WIDGET
+═══════════════════════════════════ */
+.weather-widget {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 16px; margin: 0 16px 12px;
+  backdrop-filter: blur(12px);
+}
+.weather-current { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.weather-ico { font-size: 40px; }
+.weather-temp { font-size: 36px; font-weight: 900; font-family: var(--mono); }
+.weather-desc { font-size: 13px; color: var(--text2); margin-top: 2px; }
+.weather-details { display: flex; gap: 16px; flex-wrap: wrap; }
+.weather-detail { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+.weather-forecast { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+.forecast-item {
+  text-align: center; flex-shrink: 0; min-width: 52px;
+  background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px 4px;
+}
+.forecast-day { font-size: 10px; color: var(--text2); margin-bottom: 4px; }
+.forecast-ico { font-size: 20px; margin-bottom: 4px; }
+.forecast-temp { font-size: 13px; font-weight: 700; font-family: var(--mono); }
+
+/* ═══════════════════════════════════
+   DIFFICULTY BADGE
+═══════════════════════════════════ */
+.difficulty-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+}
+.diff-easy   { background: rgba(76,175,80,0.2);  color: #4CAF50; }
+.diff-medium { background: rgba(255,193,7,0.2);  color: #FFC107; }
+.diff-hard   { background: rgba(255,107,53,0.2); color: #FF6B35; }
+.diff-epic   { background: rgba(156,39,176,0.2); color: #9C27B0; }
+
+/* ═══════════════════════════════════
+   POWER CURVE
+═══════════════════════════════════ */
+.power-curve-wrap {
+  background: rgba(0,0,0,0.2); border-radius: 12px;
+  padding: 12px 16px; margin: 0 16px 12px;
+}
+.power-curve-title { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+.power-curve-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+}
+.pc-item { text-align: center; }
+.pc-val { font-size: 16px; font-weight: 800; font-family: var(--mono); }
+.pc-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; }
+
+/* ═══════════════════════════════════
+   NIGHT MODE OVERLAY
+═══════════════════════════════════ */
+#night-overlay {
+  position: fixed; inset: 0; background: #FF0000;
+  opacity: 0; pointer-events: none; z-index: 99990;
+  mix-blend-mode: multiply; display: none;
+}
+
+/* ═══════════════════════════════════
+   PB PREDICTION (ride screen)
+═══════════════════════════════════ */
+.pb-predict-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; background: rgba(255,215,0,0.08);
+  border: 1px solid rgba(255,215,0,0.15); border-radius: 10px;
+  margin: 4px 16px;
+}
+.pb-predict-lbl { font-size: 11px; color: var(--text2); }
+.pb-predict-val { font-size: 15px; font-weight: 800; font-family: var(--mono); }
+.pb-predict-delta { font-size: 12px; font-family: var(--mono); font-weight: 700; }
+
+/* ═══════════════════════════════════
+   HR ZONES
+═══════════════════════════════════ */
+.hrz-bar-wrap { display: flex; gap: 3px; height: 16px; border-radius: 8px; overflow: hidden; margin: 6px 0; }
+.hrz-segment { height: 100%; transition: flex 0.5s; }
+.hrz-labels { display: flex; gap: 3px; margin-top: 3px; }
+.hrz-lbl { flex: 1; text-align: center; font-size: 9px; color: var(--text3); }
+
+/* ═══════════════════════════════════
+   STREAK DISPLAY
+═══════════════════════════════════ */
+.streak-display {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; background: rgba(255,107,53,0.1);
+  border: 1px solid rgba(255,107,53,0.2); border-radius: 12px;
+  margin: 0 16px 12px;
+}
+.streak-fire { font-size: 28px; }
+.streak-num { font-size: 28px; font-weight: 900; font-family: var(--mono); color: #FF6B35; }
+.streak-lbl { font-size: 12px; color: var(--text2); }
 </style>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/VeloApo/sw.js'));
+  }
+</script>
 </head>
 <body>
+
+<div id="night-overlay"></div>
 
 <!-- background layer -->
 <div id="app-bg"></div>
@@ -1693,6 +1942,9 @@ body {
     <div class="sidebar-nav-item" id="sb-nav-strava" onclick="openStravaConnect()">
       <span class="sidebar-nav-ico">🟠</span> Strava
     </div>
+    <div class="sidebar-nav-item" id="sb-nav-garage" onclick="navTo('garage')"><span class="sidebar-nav-ico">🚲</span> Garáž</div>
+    <div class="sidebar-nav-item" id="sb-nav-training" onclick="navTo('training')"><span class="sidebar-nav-ico">📅</span> Tréninky</div>
+    <div class="sidebar-nav-item" id="sb-nav-settings" onclick="navTo('settings')"><span class="sidebar-nav-ico">⚙️</span> Nastavení</div>
   </nav>
   <div class="sidebar-routes-section">
     <div class="sidebar-routes-title">Trasy</div>
@@ -1731,6 +1983,9 @@ body {
     <div class="drawer-item" id="strava-drawer-item" onclick="openStravaConnect()">
       <span class="di-ico">🟠</span> Připojit Strava
     </div>
+    <div class="drawer-item" onclick="navTo('garage');closeDrawer()"><span class="di-ico">🚲</span> Garáž</div>
+    <div class="drawer-item" onclick="navTo('training');closeDrawer()"><span class="di-ico">📅</span> Tréninky</div>
+    <div class="drawer-item" onclick="navTo('settings');closeDrawer()"><span class="di-ico">⚙️</span> Nastavení</div>
   </nav>
   <div class="drawer-foot">
     <div>VeloTimer v3 · PWA</div>
@@ -1874,6 +2129,7 @@ body {
       <div style="height: 10px;"></div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button class="btn btn-glass btn-block btn-sm" onclick="showCompareRides()">⚡ Srovnat jízdy</button>
+        <button class="btn btn-glass btn-sm" onclick="exportRouteGPX(viewIdx)">📥 GPX</button>
       </div>
       <button class="btn btn-outline btn-block btn-sm" onclick="deleteRoute()" style="color:var(--red);border-color:rgba(255,85,102,0.3);">🗑 Smazat trasu</button>
       <div style="height: 30px;"></div>
@@ -2025,6 +2281,17 @@ body {
         <span class="ghost-delta" id="ghost-delta">—</span>
       </div>
 
+      <div class="pb-predict-bar" id="pb-predict-bar" style="display:none">
+        <div>
+          <div class="pb-predict-lbl">⏱ Odhadovaný cílový čas</div>
+          <div class="pb-predict-val" id="pb-predict-val">—</div>
+        </div>
+        <div style="text-align:right">
+          <div class="pb-predict-lbl">vs PB</div>
+          <div class="pb-predict-delta" id="pb-predict-delta">—</div>
+        </div>
+      </div>
+
       <div class="stats-grid" style="width:100%">
         <div class="scard">
           <div class="scard-lbl">⏱ Čas</div>
@@ -2172,7 +2439,9 @@ body {
   <div class="hdr">
     <div class="hdr-menu-btn" onclick="openDrawer()"><span></span></div>
     <div class="hdr-title">Statistiky</div>
-    <div class="hdr-right">
+    <div class="hdr-right" style="display:flex;gap:4px">
+      <button class="btn btn-glass btn-sm" onclick="navTo('training')">📅</button>
+      <button class="btn btn-glass btn-sm" onclick="navTo('garage')">🚲</button>
       <button class="btn btn-glass btn-sm" onclick="document.getElementById('modal-goals').classList.add('open'); renderGoals()">🎯 Cíle</button>
     </div>
   </div>
@@ -2194,7 +2463,26 @@ body {
       <button class="spt-btn active" onclick="setStatsPeriod('all')" id="spt-all">Celkem</button>
     </div>
 
+    <!-- Weather -->
+    <div id="stats-weather"></div>
+
+    <!-- Streak -->
+    <div id="stats-streak" style="padding:0 16px;margin-bottom:8px"></div>
+
     <div class="stats-overview" id="stats-overview"></div>
+
+    <!-- Personal Records -->
+    <div id="stats-pr" style="margin-bottom:16px"></div>
+
+    <!-- Heat Calendar -->
+    <div style="padding:0 16px 8px;font-weight:800;font-size:15px">📅 Aktivita</div>
+    <div id="stats-heat" style="padding:0 16px;margin-bottom:16px;overflow-x:auto"></div>
+
+    <!-- Power Curve -->
+    <div id="stats-power"></div>
+
+    <!-- HR Zones -->
+    <div id="stats-hrz" style="margin-bottom:16px"></div>
 
     <div class="stats-charts-wrap">
       <div class="profile-wrap">
@@ -2364,6 +2652,171 @@ body {
     </div>
     <div class="modal-btns" style="margin-top:16px">
       <button class="btn btn-glass btn-block" onclick="closeModal('modal-goals')">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ NASTAVENÍ ═══════════ -->
+<div id="screen-settings" class="screen">
+  <div class="hdr">
+    <div class="hdr-back" onclick="goBack()">‹</div>
+    <div class="hdr-title">⚙️ Nastavení</div>
+    <div class="hdr-right"></div>
+  </div>
+  <div class="scroll">
+
+    <div class="settings-section">
+      <div class="settings-title">Zobrazení</div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Noční mód (červený overlay)</div><div class="settings-sub">Zachovává noční vidění</div></div>
+        <button class="toggle-switch" id="tog-nightred" onclick="toggleSetting('nightRed')"></button>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Barva tématu</div></div>
+        <div style="display:flex;gap:8px">
+          <div class="color-swatch" style="background:#4B9EFF" onclick="setTheme('blue')" id="sw-blue"></div>
+          <div class="color-swatch" style="background:#4CAF50" onclick="setTheme('green')" id="sw-green"></div>
+          <div class="color-swatch" style="background:#FF6B35" onclick="setTheme('orange')" id="sw-orange"></div>
+          <div class="color-swatch" style="background:#9C27B0" onclick="setTheme('purple')" id="sw-purple"></div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Jednotky</div></div>
+        <select class="inp settings-inp" style="width:80px" onchange="appSettings.units=this.value;saveSettings()">
+          <option value="km">km</option>
+          <option value="mi">mi</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Výkon a kondice</div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">FTP (Functional Threshold Power)</div><div class="settings-sub">Watts — základ pro výpočet zón</div></div>
+        <input class="settings-inp" type="number" id="inp-ftp" min="50" max="500" onchange="appSettings.ftp=+this.value;saveSettings()">
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Max. tepová frekvence</div><div class="settings-sub">tepů/min — základ pro HR zóny</div></div>
+        <input class="settings-inp" type="number" id="inp-maxhr" min="120" max="230" onchange="appSettings.maxHr=+this.value;saveSettings()">
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Hmotnost</div><div class="settings-sub">kg — pro výpočet W/kg</div></div>
+        <input class="settings-inp" type="number" id="inp-weight" min="30" max="200" onchange="appSettings.weight=+this.value;saveSettings()">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Data</div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Exportovat všechna data</div><div class="settings-sub">JSON záloha localStorage</div></div>
+        <button class="btn btn-glass btn-sm" onclick="exportAllData()">💾 Export</button>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">Importovat data</div><div class="settings-sub">Obnovit z JSON zálohy</div></div>
+        <button class="btn btn-glass btn-sm" onclick="document.getElementById('import-all-file').click()">📂 Import</button>
+        <input type="file" id="import-all-file" accept=".json" style="display:none" onchange="importAllData(this)">
+      </div>
+    </div>
+
+    <div class="settings-section" style="padding-bottom:30px">
+      <div class="settings-title">Aplikace</div>
+      <div class="settings-row">
+        <div><div class="settings-lbl">VeloTimer</div><div class="settings-sub" id="settings-version">v3.0</div></div>
+        <span style="font-size:12px;color:var(--text3)">🚴</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ GARÁŽ ═══════════ -->
+<div id="screen-garage" class="screen">
+  <div class="hdr">
+    <div class="hdr-back" onclick="goBack()">‹</div>
+    <div class="hdr-title">🚲 Garáž</div>
+    <div class="hdr-right">
+      <button class="btn btn-blue btn-sm" onclick="showAddBikeModal()">+ Kolo</button>
+    </div>
+  </div>
+  <div class="scroll" style="padding:16px">
+    <div id="garage-content"></div>
+  </div>
+</div>
+
+<!-- Add bike modal -->
+<div class="modal-ov" id="modal-add-bike">
+  <div class="modal-sheet">
+    <div class="modal-title">🚲 Přidat kolo</div>
+    <div class="fgrp"><label class="lbl">Název</label><input class="inp" id="bike-name" placeholder="Silniční kolo"></div>
+    <div class="fgrp"><label class="lbl">Značka</label><input class="inp" id="bike-brand" placeholder="Trek, Specialized..."></div>
+    <div class="fgrp"><label class="lbl">Model</label><input class="inp" id="bike-model" placeholder="Domane SL5"></div>
+    <div class="fgrp"><label class="lbl">Ikona</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="bike-icon-pick">
+        🚴 🚵 🏍️ ⚡ 🔴 🔵 🟡 🟢
+      </div>
+    </div>
+    <div class="fgrp"><label class="lbl">Najeté km (stávající)</label><input class="inp" id="bike-km" type="number" placeholder="0"></div>
+    <div class="modal-btns">
+      <button class="btn btn-glass btn-block" onclick="closeModal('modal-add-bike')">Zrušit</button>
+      <button class="btn btn-blue btn-block" onclick="saveBike()">Přidat</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TRÉNINKY ═══════════ -->
+<div id="screen-training" class="screen">
+  <div class="hdr">
+    <div class="hdr-back" onclick="goBack()">‹</div>
+    <div class="hdr-title">🏋️ Tréninky</div>
+    <div class="hdr-right" style="display:flex;gap:4px">
+      <button class="btn btn-glass btn-sm" onclick="showTrainingTab('calendar')">📅</button>
+      <button class="btn btn-glass btn-sm" onclick="showTrainingTab('workouts')">💪</button>
+    </div>
+  </div>
+  <div class="scroll" style="padding:0 0 30px">
+    <!-- Calendar tab -->
+    <div id="training-tab-calendar">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px">
+        <button class="btn btn-glass btn-sm" onclick="changeCalMonth(-1)">‹</button>
+        <div id="cal-month-label" style="font-weight:800;font-size:16px"></div>
+        <button class="btn btn-glass btn-sm" onclick="changeCalMonth(1)">›</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-day-hdr">Po</div><div class="cal-day-hdr">Út</div>
+        <div class="cal-day-hdr">St</div><div class="cal-day-hdr">Čt</div>
+        <div class="cal-day-hdr">Pá</div><div class="cal-day-hdr">So</div>
+        <div class="cal-day-hdr">Ne</div>
+      </div>
+      <div class="cal-grid" id="cal-days"></div>
+    </div>
+    <!-- Workouts tab -->
+    <div id="training-tab-workouts" style="display:none;padding:16px">
+      <div id="workouts-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Plan day modal -->
+<div class="modal-ov" id="modal-plan-day">
+  <div class="modal-sheet">
+    <div class="modal-title" id="plan-day-title">Naplánovat jízdu</div>
+    <div class="fgrp">
+      <label class="lbl">Trasa</label>
+      <select class="inp" id="plan-route-sel"></select>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Trénink</label>
+      <select class="inp" id="plan-workout-sel">
+        <option value="">Volná jízda</option>
+      </select>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Poznámka</label>
+      <input class="inp" id="plan-notes" placeholder="Cíl, podmínky...">
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-glass btn-block" onclick="closeModal('modal-plan-day')">Zrušit</button>
+      <button class="btn btn-blue btn-block" onclick="savePlanDay()">Uložit</button>
     </div>
   </div>
 </div>

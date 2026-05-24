@@ -21,6 +21,40 @@ function wallpaperUrl(id) {
 
 // ── DATA ─────────────────────────────────────────
 let routes = JSON.parse(localStorage.getItem('vt_routes') || '[]');
+
+// ── SETTINGS ──────────────────────────────────────
+let appSettings = JSON.parse(localStorage.getItem('vt_settings') || JSON.stringify({
+  units: 'km',
+  nightMode: false,
+  nightRed: false,
+  ftp: 250,         // Functional Threshold Power (watts)
+  maxHr: 190,       // Max heart rate
+  weight: 75,       // kg
+  themeColor: 'blue', // 'blue' | 'green' | 'orange' | 'purple'
+}));
+
+// ── BIKES / EQUIPMENT ─────────────────────────────
+let bikes = JSON.parse(localStorage.getItem('vt_bikes') || '[]');
+// Bike: { id, name, brand, model, color, totalKm, components: [{name, intervalKm, warnAt, currentKm}] }
+
+// ── TRAINING ──────────────────────────────────────
+let workouts = JSON.parse(localStorage.getItem('vt_workouts') || JSON.stringify([
+  { id:'w1', name:'Endurance', icon:'🚴', segments:[{type:'warmup',min:15,pct:60},{type:'steady',min:60,pct:75},{type:'cooldown',min:10,pct:55}] },
+  { id:'w2', name:'Tempo intervals', icon:'⚡', segments:[{type:'warmup',min:15,pct:60},{type:'on',min:8,pct:90},{type:'off',min:4,pct:55},{type:'on',min:8,pct:90},{type:'off',min:4,pct:55},{type:'on',min:8,pct:90},{type:'cooldown',min:10,pct:55}] },
+  { id:'w3', name:'VO2 max', icon:'🔥', segments:[{type:'warmup',min:20,pct:60},{type:'on',min:4,pct:110},{type:'off',min:4,pct:50},{type:'on',min:4,pct:110},{type:'off',min:4,pct:50},{type:'on',min:4,pct:110},{type:'cooldown',min:15,pct:55}] },
+  { id:'w4', name:'Recovery', icon:'💤', segments:[{type:'easy',min:45,pct:55}] },
+]));
+
+let trainingPlan = JSON.parse(localStorage.getItem('vt_training') || '[]');
+// Plan entry: { id, date(YYYY-MM-DD), routeIdx, workoutId, notes, completed, actualMs }
+
+function saveBikes()    { localStorage.setItem('vt_bikes', JSON.stringify(bikes)); }
+function saveWorkouts() { localStorage.setItem('vt_workouts', JSON.stringify(workouts)); }
+function saveTraining() { localStorage.setItem('vt_training', JSON.stringify(trainingPlan)); }
+function saveSettings() {
+  localStorage.setItem('vt_settings', JSON.stringify(appSettings));
+  applySettings();
+}
 let editIdx = null;
 let viewIdx = null;
 let gpxTemp = null;
