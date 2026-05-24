@@ -67,7 +67,50 @@ jobs:
           echo "=== wrangler.toml ==="
           cat worker/wrangler.toml
 
-      # ── 5. Deploy Worker ───────────────────────────────────────────────
+      # ── 5. Registruj workers.dev subdomain (nutné poprvé) ──────────────
+      - name: Register workers.dev subdomain
+        id: subdomain
+        env:
+          CF_TOKEN:   ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          # Zkontroluj zda subdomain již existuje
+          RESP=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" \
+            -H "Authorization: Bearer $CF_TOKEN" || echo '{}')
+          echo "Subdomain check: $RESP"
+          SUB=$(echo "$RESP" | python3 -c \
+            "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('subdomain',''))" 2>/dev/null || echo "")
+
+          if [ -n "$SUB" ]; then
+            echo "✅ Subdomain již existuje: $SUB"
+          else
+            echo "⚙️ Registruji workers.dev subdomain..."
+            # Zkus postupně různé názvy dokud jeden nezabere
+            for NAME in "dahor212" "dahor212-cf" "veloapo-dahor" "veloapo212" "dahordev"; do
+              REG=$(curl -sf -X PUT \
+                "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" \
+                -H "Authorization: Bearer $CF_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"subdomain\": \"$NAME\"}" || echo '{"success":false}')
+              echo "  Pokus '$NAME': $REG"
+              OK=$(echo "$REG" | python3 -c \
+                "import sys,json; d=json.load(sys.stdin); print('yes' if d.get('success') else 'no')" 2>/dev/null || echo "no")
+              if [ "$OK" = "yes" ]; then
+                SUB="$NAME"
+                echo "✅ Zaregistrován subdomain: $SUB"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$SUB" ]; then
+            echo "❌ Nepodařilo se zaregistrovat subdomain."
+            echo "   Jdi na: https://dash.cloudflare.com/$CF_ACCOUNT/workers/onboarding"
+            exit 1
+          fi
+          echo "SUBDOMAIN=$SUB" >> "$GITHUB_OUTPUT"
+
+      # ── 6. Deploy Worker ───────────────────────────────────────────────
       - name: Deploy Worker
         id: deploy
         env:
