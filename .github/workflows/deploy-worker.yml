@@ -78,13 +78,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           cd worker
-          DEPLOY_OUT=$(npx wrangler deploy 2>&1)
-          echo "$DEPLOY_OUT"
+          # tee: output visible in Actions log AND saved to file for URL extraction
+          npx wrangler deploy 2>&1 | tee /tmp/deploy.log
+          # Fail the step if wrangler exited non-zero (pipefail)
+          test ${PIPESTATUS[0]} -eq 0
 
           # Extract deployed URL from wrangler output
-          WORKER_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://veloapo-strava\.[^ ]+' | head -1 | tr -d '\r')
+          WORKER_URL=$(grep -oE 'https://veloapo-strava\.[^ ]+' /tmp/deploy.log | head -1 | tr -d '\r')
           if [ -z "$WORKER_URL" ]; then
-            WORKER_URL="https://veloapo-strava.${{ secrets.CF_ACCOUNT_ID }}.workers.dev"
+            WORKER_URL="https://veloapo-strava.workers.dev"
+            echo "⚠️ URL not found in output, using fallback"
           fi
           echo "WORKER_URL=$WORKER_URL" >> "$GITHUB_OUTPUT"
           echo "🚀 Worker URL: $WORKER_URL"
