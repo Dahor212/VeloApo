@@ -27,12 +27,14 @@ let curScreen = 'home';
 let statsPeriod = 'all';
 let selectedWallpaper = DEFAULT_WALL;
 let selectedWallpaperGPX = DEFAULT_WALL;
+let navStack = [];  // navigation history for goBack()
 
 // ── RIDE STATE ────────────────────────────────────
 let rs = {
   running: false, startTs: null, elapsed: 0,
   cps: [], cpIdx: 0, finished: false,
-  prevPos: null  // for "moving-up/down" animations
+  prevPos: null,       // for legacy compatibility
+  _tvLastUpdate: -1    // throttle TV board updates
 };
 let rafId = null;
 
@@ -51,13 +53,29 @@ function showScreen(name) {
   });
 }
 
-function navTo(name) {
+function navTo(name, clearStack) {
+  if (clearStack || name === 'home') {
+    navStack = [];
+  } else if (curScreen && curScreen !== name) {
+    navStack.push(curScreen);
+  }
   closeDrawer();
-  if (name === 'home') renderHome();
+  if (name === 'home')   renderHome();
   if (name === 'detail') renderDetail();
-  if (name === 'add')  initAddScreen();
-  if (name === 'stats') renderStats();
+  if (name === 'add')    initAddScreen();
+  if (name === 'stats')  renderStats();
   showScreen(name);
+}
+
+function goBack() {
+  const prev = navStack.pop();
+  if (!prev || prev === curScreen) { navTo('home', true); return; }
+  // Navigate back without pushing to stack
+  closeDrawer();
+  if (prev === 'home')   { renderHome();   showScreen('home'); }
+  if (prev === 'detail') { renderDetail(); showScreen('detail'); }
+  if (prev === 'stats')  { renderStats();  showScreen('stats'); }
+  if (prev === 'add')    { initAddScreen(); showScreen('add'); }
 }
 
 function updateBackground() {
@@ -74,10 +92,32 @@ function updateBackground() {
     wall = 'wall4';   // meadow
   }
   bg.style.backgroundImage = `url(${wallpaperUrl(wall)})`;
+  // Screen-specific overlay class
+  bg.className = curScreen === 'stats' ? 'bg-stats' : '';
 }
 
 // ── DRAWER ─────────────────────────────────────────
-function openDrawer()  { document.getElementById('drawer').classList.add('open'); document.getElementById('drawer-ov').classList.add('open'); }
+function openDrawer() {
+  // Populate mini stats
+  const stats = computeAggregateStats('all');
+  document.getElementById('dm-rides').textContent = stats.totalRides + ' jízd';
+  document.getElementById('dm-km').textContent = stats.totalKm.toFixed(0) + ' km';
+  // Last ride date
+  const lastRide = stats.allRides[0];
+  const lastEl = document.getElementById('drawer-last-ride');
+  if (lastRide) {
+    const d = new Date(lastRide.date).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit',year:'numeric'});
+    lastEl.textContent = 'Poslední jízda: ' + d;
+  } else {
+    lastEl.textContent = '';
+  }
+  // Hero image: use wallpaper of last ridden route, else wall7
+  const heroWall = lastRide?.route?.wallpaper || 'wall7';
+  document.getElementById('drawer-hero-img').style.backgroundImage = `url(${wallpaperUrl(heroWall)})`;
+
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-ov').classList.add('open');
+}
 function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawer-ov').classList.remove('open'); }
 
 // ════════════════════════════════════════════════
@@ -420,7 +460,8 @@ function startRide() {
   rs = {
     running:false, startTs:null, elapsed:0,
     cps: (r.checkpoints||[]).map(cp => ({...cp, hitTime:null, splitMs:null})),
-    cpIdx:0, finished:false, prevPos:null
+    cpIdx:0, finished:false, prevPos:null,
+    _tvLastUpdate: -1
   };
   cancelAnimationFrame(rafId);
   document.getElementById('ride-name').textContent     = r.name;
@@ -433,6 +474,17 @@ function startRide() {
   document.getElementById('timer-main').className = 'timer-main';
   document.getElementById('timer-main').innerHTML = '0:00<span class="timer-ms" id="timer-ms">.00</span>';
   document.getElementById('prog-fill').style.width = '0%';
+  // Progress markers for checkpoints
+  const markersEl = document.getElementById('prog-markers');
+  if (markersEl) {
+    markersEl.innerHTML = (r.checkpoints||[]).map(cp => {
+      const pct = r.totalDist ? Math.min(99, (cp.km / r.totalDist) * 100) : 0;
+      return `<div class="prog-cp-marker" data-km="${cp.km}" style="left:${pct}%"></div>`;
+    }).join('');
+  }
+  // Clear TV board
+  const tvRows = document.getElementById('tv-rows');
+  if (tvRows) tvRows.innerHTML = '<div class="tv-empty">Spusť jízdu a projeď 1. CP 🚀</div>';
   resetStatCards();
   renderRideCPs();
   renderTVBoard();
@@ -460,6 +512,7 @@ function toggleTimer() {
     document.getElementById('sdot').className     = 'status-dot go';
     document.getElementById('stxt').textContent   = 'JEDE';
     document.getElementById('timer-main').classList.remove('paused');
+    document.getElementById('timer-main').classList.add('running');
     renderRideCPs();
     tick();
   } else {
@@ -470,6 +523,7 @@ function toggleTimer() {
     document.getElementById('sdot').className     = 'status-dot pause';
     document.getElementById('stxt').textContent   = 'PAUZA';
     document.getElementById('timer-main').classList.add('paused');
+    document.getElementById('timer-main').classList.remove('running');
     document.getElementById('btn-rst').style.display = '';
     renderRideCPs();
   }
@@ -522,100 +576,128 @@ function updateRideUI() {
       el.textContent = (diff<=0?'▲ ':'▼ +') + fmtTime(Math.abs(diff));
     }
   }
-  renderTVBoard();
+  // Throttle TV board: update at most once per second
+  if (rs._tvLastUpdate < 0 || (rs.elapsed - rs._tvLastUpdate) >= 1000) {
+    rs._tvLastUpdate = rs.elapsed;
+    renderTVBoard();
+  }
 }
 
 // ════════════════════════════════════════════════
-//  TV BOARD — propadávající žebříček
+//  TV BOARD — propadávající žebříček (DOM-diffing)
 // ════════════════════════════════════════════════
-function renderTVBoard() {
-  const r = routes[viewIdx]; if (!r) return;
+const TV_ROW_H = 52; // px per row (must match CSS padding+content)
+
+function buildTVEntries(r) {
   const recs = r.records || [];
   const cps  = rs.cps;
+  const nextCpIdx = rs.cpIdx;           // index of NEXT (upcoming) checkpoint
   const lastHit = [...cps].reverse().find(c=>c.hitTime!==null);
   const ci = lastHit ? cps.indexOf(lastHit) : -1;
 
-  // Header text
+  // Header: show target (next CP or finish)
+  const nextCP = rs.finished ? null : cps[nextCpIdx];
+  const nextLabel = rs.finished
+    ? '🏁 CÍL'
+    : nextCP
+      ? `Cíl: <span class="tv-hdr-cp">${nextCP.name || ('CP '+(nextCpIdx+1))}</span>`
+      : '<span class="tv-hdr-cp">START</span>';
+  document.getElementById('tv-cp-info').innerHTML = nextLabel;
+
+  // Estimated "me" time at next CP (or total if finished):
+  // If finished → rs.elapsed
+  // If hit last CP → interpolate: elapsed * (distNext / distLast)
+  // If no CP hit → not comparable yet (null)
+  let myETA = null;
   if (rs.finished) {
-    document.getElementById('tv-cp-info').innerHTML = '<span class="tv-hdr-cp">🏁 CÍL</span>';
+    myETA = rs.elapsed;
+  } else if (lastHit && rs.elapsed > 0 && lastHit.km > 0) {
+    const distNext = nextCP ? nextCP.km : r.totalDist || lastHit.km;
+    myETA = rs.elapsed * (distNext / lastHit.km);
   } else if (lastHit) {
-    document.getElementById('tv-cp-info').innerHTML = `Po <span class="tv-hdr-cp">CP ${ci+1}</span> · ${lastHit.name||''}`;
-  } else {
-    document.getElementById('tv-cp-info').innerHTML = '<span class="tv-hdr-cp">START</span> · čeká se na 1. CP';
+    myETA = lastHit.hitTime; // fallback: last CP time
   }
 
-  // Compute "current reference time" for me:
-  // - If I've hit a CP, use that CP time
-  // - Otherwise interpolate based on elapsed time (no positional info)
-  const myRefTime = rs.finished ? rs.elapsed : (lastHit ? lastHit.hitTime : null);
-
-  // Build entries: each historical ride's time at the same CP (or final time if rs.finished)
+  // Historical rides: their time at next CP (or total if finished)
   const entries = recs.map((rec, idx) => {
     const date = new Date(rec.date).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit'});
-    let refTime;
+    let refTime = null;
     if (rs.finished) {
       refTime = rec.totalMs;
+    } else if (nextCpIdx > 0 && rec.checkpoints?.[nextCpIdx - 1]?.hitTime != null) {
+      // Use last hit CP's time from history (since we can't predict next CP for history)
+      refTime = rec.checkpoints[ci]?.hitTime ?? null;
     } else if (ci >= 0 && rec.checkpoints?.[ci]?.hitTime != null) {
       refTime = rec.checkpoints[ci].hitTime;
-    } else {
-      refTime = null; // not comparable yet
     }
-    return {
-      isMe: false, name: `Jízda #${idx+1}`, sub: date,
-      refTime, totalTime: rec.totalMs
-    };
+    return { key: 'ride-' + idx, isMe: false, name: `Jízda #${idx+1}`, sub: date, refTime };
   });
 
-  // Me
-  entries.push({ isMe: true, name: '👤 Já', sub: rs.finished?'právě teď':(lastHit?'aktuálně':'ještě nezačal'), refTime: myRefTime, totalTime: rs.elapsed });
+  // Add "me"
+  entries.push({
+    key: 'me', isMe: true,
+    name: '👤 Já',
+    sub: rs.finished ? 'právě teď' : (lastHit ? 'v jízdě' : 'připraven'),
+    refTime: myETA
+  });
 
-  // Sort: comparable first by refTime, then non-comparable at the bottom
-  const ranked = [...entries].sort((a,b)=>{
+  // Sort: comparable first (by refTime asc), non-comparable at bottom
+  const ranked = [...entries].sort((a,b) => {
     if (a.refTime===null && b.refTime===null) return 0;
     if (a.refTime===null) return 1;
     if (b.refTime===null) return -1;
     return a.refTime - b.refTime;
   });
 
-  const myPos = ranked.findIndex(e => e.isMe) + 1;
-  const total = ranked.length;
-  document.getElementById('s-pos').textContent  = '#' + myPos;
-  document.getElementById('s-pos-of').textContent = `z ${total}`;
+  return ranked;
+}
 
-  // Detect rank change for glow animation
-  let movingClass = '';
-  if (rs.prevPos !== null && rs.prevPos !== myPos) {
-    movingClass = myPos < rs.prevPos ? 'moving-up' : 'moving-down';
-  }
-  rs.prevPos = myPos;
+function renderTVBoard() {
+  const r = routes[viewIdx]; if (!r) return;
 
-  // Leader's ref time
-  const leader = ranked[0];
+  const ranked = buildTVEntries(r);
+  if (!ranked.length) return;
+
+  const meEntry = ranked.find(e => e.isMe);
+  const leader  = ranked[0];
   const isLeading = leader?.isMe;
 
-  // Render
-  const tvRows = document.getElementById('tv-rows');
-  if (!ranked.length) {
-    tvRows.innerHTML = '<div class="tv-empty">Zatím žádná data — pojeď! 🚀</div>';
-    return;
-  }
+  // Update position card
+  const myPos = ranked.findIndex(e => e.isMe) + 1;
+  document.getElementById('s-pos').textContent  = '#' + myPos;
+  document.getElementById('s-pos-of').textContent = `z ${ranked.length}`;
 
-  tvRows.innerHTML = ranked.map((e,i) => {
-    const pos = i+1;
-    const posCls = pos===1?'p1':pos===2?'p2':pos===3?'p3':'';
+  const container = document.getElementById('tv-rows');
+
+  // If container has the "empty" placeholder, clear it
+  if (container.querySelector('.tv-empty')) container.innerHTML = '';
+
+  // Set container height for absolute children
+  container.style.height = (ranked.length * TV_ROW_H) + 'px';
+
+  // Collect existing DOM rows keyed by data-key
+  const existing = {};
+  container.querySelectorAll('.tv-row[data-key]').forEach(el => {
+    existing[el.dataset.key] = el;
+  });
+
+  ranked.forEach((entry, i) => {
+    const newTop = i * TV_ROW_H;
+
+    // Build diff HTML for this entry vs others
     let diffHTML;
-    if (e.isMe) {
+    if (entry.isMe) {
       if (isLeading) {
         diffHTML = '<div class="tv-diff leader">🏆 LEAD</div>';
-      } else if (e.refTime != null && leader?.refTime != null) {
-        const d = e.refTime - leader.refTime;
+      } else if (entry.refTime != null && leader?.refTime != null) {
+        const d = entry.refTime - leader.refTime;
         diffHTML = `<div class="tv-diff behind"><span class="tv-arrow">▼</span>+${fmtTime(d)}</div>`;
       } else {
         diffHTML = '<div class="tv-diff none">—</div>';
       }
     } else {
-      if (e.refTime != null && myRefTime != null) {
-        const d = e.refTime - myRefTime;
+      if (entry.refTime != null && meEntry?.refTime != null) {
+        const d = entry.refTime - meEntry.refTime;
         if (d < 0) diffHTML = `<div class="tv-diff ahead"><span class="tv-arrow">▲</span>-${fmtTime(Math.abs(d))}</div>`;
         else if (d > 0) diffHTML = `<div class="tv-diff behind"><span class="tv-arrow">▼</span>+${fmtTime(d)}</div>`;
         else diffHTML = '<div class="tv-diff none">=</div>';
@@ -623,19 +705,56 @@ function renderTVBoard() {
         diffHTML = '<div class="tv-diff none">—</div>';
       }
     }
-    const refText = e.refTime != null ? fmtTime(e.refTime) : '—';
-    const meCls = e.isMe ? (isLeading?'me leading':'me') : '';
-    const moveCls = e.isMe ? movingClass : '';
-    return `<div class="tv-row ${meCls} ${moveCls}">
-      <div class="tv-pos ${posCls}">${pos}</div>
+
+    const posCls  = i===0?'p1':i===1?'p2':i===2?'p3':'';
+    const meCls   = entry.isMe ? (isLeading ? 'me leading' : 'me') : '';
+    const refText = entry.refTime != null ? fmtTime(entry.refTime) : '—';
+    const innerHTML = `
+      <div class="tv-pos ${posCls}">${i+1}</div>
       <div>
-        <div class="tv-name">${e.name}</div>
-        <div class="tv-name-sub">${e.sub}</div>
+        <div class="tv-name">${entry.name}</div>
+        <div class="tv-name-sub">${entry.sub}</div>
       </div>
       <div class="tv-time">${refText}</div>
-      ${diffHTML}
-    </div>`;
-  }).join('');
+      ${diffHTML}`;
+
+    let row = existing[entry.key];
+    if (!row) {
+      // New row: create, position at target, fade in
+      row = document.createElement('div');
+      row.dataset.key = entry.key;
+      row.className = 'tv-row ' + meCls;
+      row.style.top = newTop + 'px';
+      row.style.opacity = '0';
+      row.innerHTML = innerHTML;
+      container.appendChild(row);
+      // Fade in next frame
+      requestAnimationFrame(() => { row.style.opacity = '1'; });
+    } else {
+      // Existing row: check if position changed
+      const oldTop = parseInt(row.style.top, 10) || 0;
+      if (oldTop !== newTop) {
+        // Flash animation on "me" row, subtle on others
+        if (entry.isMe) {
+          row.classList.remove('flash-up','flash-down');
+          void row.offsetWidth; // reflow to restart animation
+          row.classList.add(newTop < oldTop ? 'flash-up' : 'flash-down');
+          setTimeout(() => row.classList.remove('flash-up','flash-down'), 900);
+        }
+        row.style.top = newTop + 'px';
+      }
+      // Update class and content
+      row.className = 'tv-row ' + meCls;
+      row.innerHTML = innerHTML;
+    }
+    delete existing[entry.key];
+  });
+
+  // Remove rows that no longer exist
+  Object.values(existing).forEach(el => {
+    el.style.opacity = '0';
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 380);
+  });
 }
 
 // ── HIT CHECKPOINT ────────────────────────────────
@@ -645,8 +764,12 @@ function hitCP(idx) {
   rs.cps[idx].hitTime = ms;
   rs.cps[idx].splitMs = idx===0 ? ms : (rs.cps[idx-1].hitTime!==null ? ms - rs.cps[idx-1].hitTime : null);
   rs.cpIdx = idx + 1;
+  rs._tvLastUpdate = -1; // force immediate TV board refresh
   if (navigator.vibrate) navigator.vibrate(100);
   toast(`✓ CP${idx+1}: ${fmtTime(ms)}`);
+  // Update progress marker to done
+  const marker = document.querySelector(`#prog-markers .prog-cp-marker[data-km="${rs.cps[idx].km}"]`);
+  if (marker) marker.classList.add('done');
   renderRideCPs();
   renderTVBoard();
 }
@@ -655,11 +778,14 @@ function finishRide() {
   if (!rs.running) return;
   const ms = performance.now() - rs.startTs;
   rs.elapsed = ms; rs.running = false; rs.finished = true;
+  rs._tvLastUpdate = -1;
   cancelAnimationFrame(rafId);
   document.getElementById('btn-sp').disabled = true;
   document.getElementById('sdot').className  = 'status-dot';
   document.getElementById('stxt').textContent = 'HOTOVO';
+  document.getElementById('timer-main').classList.remove('running');
   document.getElementById('btn-rst').style.display = '';
+  renderTVBoard();
   saveRecord(ms);
   setTimeout(()=>showResults(ms), 500);
 }
@@ -793,6 +919,19 @@ function setStatsPeriod(p) {
 
 function renderStats() {
   const stats = computeAggregateStats(statsPeriod);
+
+  // Hero banner
+  const heroKmEl = document.getElementById('stats-hero-km');
+  if (heroKmEl) {
+    heroKmEl.textContent = stats.totalKm >= 1000
+      ? (stats.totalKm/1000).toFixed(2) + 'k'
+      : stats.totalKm.toFixed(1);
+    const ridesWord = stats.totalRides === 1 ? 'jízda' : stats.totalRides < 5 ? 'jízdy' : 'jízd';
+    document.getElementById('stats-hero-sub').textContent =
+      `${stats.totalRides} ${ridesWord} · ${fmtDuration(stats.totalMs)} na kole`;
+    const heroWall = stats.allRides[0]?.route?.wallpaper || 'wall6';
+    document.getElementById('stats-hero-bg').style.backgroundImage = `url(${wallpaperUrl(heroWall)})`;
+  }
 
   document.getElementById('stats-overview').innerHTML = `
     <div class="so-card">
