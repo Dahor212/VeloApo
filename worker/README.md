@@ -134,3 +134,4 @@ Query params for `/api/activities`:
 - The worker auto-refreshes the access token when it expires within 5 minutes.
 - Only `Ride` and `VirtualRide` activity types are returned.
 - The free Cloudflare Workers plan supports 100,000 requests/day — more than enough for personal use.
+
