@@ -2146,10 +2146,6 @@ function toggleRaceMode() {
   const btn = document.getElementById('race-mode-btn');
   if (btn) btn.style.opacity = _raceModeForced ? '1' : '0.5';
 }
-window.addEventListener('resize', () => {
-  // Re-apply forced race mode on resize if active
-  if (_raceModeForced) toggleRaceMode();
-});
 
 // ── Ghost timer update ────────────────────────────
 function updateGhostBar(elapsedMs) {
