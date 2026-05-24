@@ -118,8 +118,11 @@ function navTo(name, clearStack) {
   if (name === 'home')   renderHome();
   if (name === 'detail') renderDetail();
   if (name === 'add')    initAddScreen();
-  if (name === 'stats')  renderStats();
-  if (name === 'strava') renderStravaScreen();
+  if (name === 'stats')    renderStats();
+  if (name === 'strava')   renderStravaScreen();
+  if (name === 'settings') { renderSettings(); }
+  if (name === 'garage')   { renderGarage(); }
+  if (name === 'training') { showTrainingTab('calendar'); }
   // strava-creator: no extra render needed, openStravaRouteCreator sets up the screen
   showScreen(name);
   updateSidebar();
@@ -147,6 +150,9 @@ function goBack() {
   if (prev === 'add')    { initAddScreen(); showScreen('add'); }
   if (prev === 'strava') { renderStravaScreen(); showScreen('strava'); }
   if (prev === 'strava-creator') { showScreen('strava-creator'); }
+  if (prev === 'settings') { renderSettings(); showScreen('settings'); }
+  if (prev === 'garage')   { renderGarage(); showScreen('garage'); }
+  if (prev === 'training') { showTrainingTab('calendar'); showScreen('training'); }
   updateSidebar();
 }
 
@@ -162,6 +168,12 @@ function updateBackground() {
     wall = 'wall6';   // pastoral
   } else if (curScreen === 'add') {
     wall = 'wall4';   // meadow
+  } else if (curScreen === 'garage') {
+    wall = 'wall4';
+  } else if (curScreen === 'training') {
+    wall = 'wall7';
+  } else if (curScreen === 'settings') {
+    wall = 'wall6';
   }
   bg.style.backgroundImage = `url(${wallpaperUrl(wall)})`;
   // Screen-specific overlay class
@@ -257,6 +269,7 @@ function renderHome() {
     const dist = r.totalDist ? r.totalDist.toFixed(1) : '—';
     const totalRides = (r.records||[]).length;
     const avgTimeMs = totalRides > 0 ? r.records.reduce((s,rc)=>s+rc.totalMs,0)/totalRides : 0;
+    const diff = calcRouteDifficulty(r);
     return `<div class="route-card-wrap" id="route-card-${i}">
       <div class="route-card-inner">
         <div class="route-card-front">
@@ -271,8 +284,9 @@ function renderHome() {
               <div class="route-card-top">
                 <div>
                   <div class="route-card-name">${r.name}</div>
+                  <span class="difficulty-badge ${diff.cls}" style="margin-top:4px;display:inline-flex">${diff.ico} ${diff.label}</span>
                 </div>
-                <div class="route-card-badge">${r.type === 'gpx' ? 'GPX' : 'Manual'}</div>
+                <div class="route-card-badge">${r.type === 'gpx' ? 'GPX' : r.type === 'strava' ? 'Strava' : 'Manual'}</div>
               </div>
               <div>
                 <div class="route-card-stats">
@@ -871,6 +885,21 @@ function updateRideUI() {
     }
   }
 
+  // PB Prediction
+  updatePBPrediction(ms);
+
+  // Auto-save ride progress every 30 seconds
+  if (!rs._lastAutoSave || ms - rs._lastAutoSave > 30000) {
+    rs._lastAutoSave = ms;
+    localStorage.setItem('vt_ride_autosave', JSON.stringify({
+      routeIdx: viewIdx,
+      elapsed: ms,
+      cps: rs.cps,
+      cpIdx: rs.cpIdx,
+      savedAt: Date.now(),
+    }));
+  }
+
   // Feature E: Motivational messages check
   const cpsDoneForMoti = rs.cps.filter(c => c.hitTime != null).length;
   const pctForMoti = rs.cps.length > 0
@@ -1317,6 +1346,27 @@ function renderStats() {
       <div class="so-unit">PR</div>
       <div class="so-lbl">Osobní rekordy</div>
     </div>`;
+
+  // Extended stats: streak, PR, heat calendar, power curve, HR zones, weather
+  const streak = computeStreak();
+  const streakEl = document.getElementById('stats-streak');
+  if (streakEl) {
+    if (streak > 0) {
+      streakEl.innerHTML = `<div class="streak-display">
+        <div class="streak-fire">🔥</div>
+        <div><div class="streak-num">${streak}</div><div class="streak-lbl">týdenní série</div></div>
+        <div style="margin-left:auto;font-size:12px;color:var(--text2)">Jeď tento týden<br>pro udržení série!</div>
+      </div>`;
+    } else {
+      streakEl.innerHTML = '';
+    }
+  }
+
+  renderPersonalRecords('stats-pr');
+  renderHeatCalendar('stats-heat');
+  renderPowerCurve('stats-power');
+  renderHRZones('stats-hrz');
+  renderWeatherWidget('stats-weather');
 
   // Chart
   setTimeout(() => drawStatsChart(stats.timeline), 30);
@@ -2206,7 +2256,7 @@ function updateSidebar() {
   if (kmEl) animateCountUp(kmEl, Math.round(stats.totalKm));
   if (routEl) animateCountUp(routEl, routes.length);
 
-  ['home','stats','add','strava'].forEach(name => {
+  ['home','stats','add','strava','garage','training','settings'].forEach(name => {
     const el = document.getElementById(`sb-nav-${name}`);
     if (el) el.classList.toggle('active', curScreen === name || (name === 'home' && (curScreen === 'splash' || curScreen === 'home')));
   });
@@ -2766,11 +2816,752 @@ function deleteGoal(type) {
   renderGoals();
 }
 
+// ════════════════════════════════════════════════
+//  APPLY SETTINGS
+// ════════════════════════════════════════════════
+function applySettings() {
+  const root = document.documentElement;
+  // Theme colors
+  const themes = {
+    blue:   { main:'#4B9EFF', sec:'#2979FF' },
+    green:  { main:'#4CAF50', sec:'#2E7D32' },
+    orange: { main:'#FF6B35', sec:'#E64A19' },
+    purple: { main:'#9C27B0', sec:'#6A1B9A' },
+  };
+  const t = themes[appSettings.themeColor] || themes.blue;
+  root.style.setProperty('--blue', t.main);
+  root.style.setProperty('--accent', t.sec);
+
+  // Night mode
+  const nightEl = document.getElementById('night-overlay');
+  if (nightEl) {
+    nightEl.style.display = appSettings.nightRed ? 'block' : 'none';
+    nightEl.style.opacity = appSettings.nightRed ? '0.15' : '0';
+  }
+}
+
+// ════════════════════════════════════════════════
+//  SETTINGS
+// ════════════════════════════════════════════════
+function renderSettings() {
+  // Sync toggle states
+  const syncToggle = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('on', !!appSettings[key]);
+  };
+  syncToggle('tog-nightred', 'nightRed');
+
+  // Sync inputs
+  const syncInp = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.value = appSettings[key] || '';
+  };
+  syncInp('inp-ftp', 'ftp');
+  syncInp('inp-maxhr', 'maxHr');
+  syncInp('inp-weight', 'weight');
+
+  // Sync theme swatches
+  ['blue','green','orange','purple'].forEach(c => {
+    const el = document.getElementById(`sw-${c}`);
+    if (el) el.classList.toggle('active', appSettings.themeColor === c);
+  });
+
+  // Units select
+  const unitSel = document.querySelector('#screen-settings select');
+  if (unitSel) unitSel.value = appSettings.units || 'km';
+}
+
+function toggleSetting(key) {
+  appSettings[key] = !appSettings[key];
+  saveSettings();
+  renderSettings();
+}
+
+function setTheme(color) {
+  appSettings.themeColor = color;
+  saveSettings();
+  renderSettings();
+}
+
+function exportAllData() {
+  const data = {
+    vt_routes:   localStorage.getItem('vt_routes'),
+    vt_goals:    localStorage.getItem('vt_goals'),
+    vt_bikes:    localStorage.getItem('vt_bikes'),
+    vt_workouts: localStorage.getItem('vt_workouts'),
+    vt_training: localStorage.getItem('vt_training'),
+    vt_settings: localStorage.getItem('vt_settings'),
+    exportedAt:  new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `velotimer-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('✅ Data exportována');
+}
+
+function importAllData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.vt_routes)   { localStorage.setItem('vt_routes', data.vt_routes); routes = JSON.parse(data.vt_routes); }
+      if (data.vt_goals)    { localStorage.setItem('vt_goals', data.vt_goals); goals = JSON.parse(data.vt_goals); }
+      if (data.vt_bikes)    { localStorage.setItem('vt_bikes', data.vt_bikes); bikes = JSON.parse(data.vt_bikes); }
+      if (data.vt_workouts) { localStorage.setItem('vt_workouts', data.vt_workouts); workouts = JSON.parse(data.vt_workouts); }
+      if (data.vt_training) { localStorage.setItem('vt_training', data.vt_training); trainingPlan = JSON.parse(data.vt_training); }
+      if (data.vt_settings) { localStorage.setItem('vt_settings', data.vt_settings); appSettings = JSON.parse(data.vt_settings); }
+      toast('✅ Data importována — restartuj aplikaci');
+      renderHome();
+    } catch(err) {
+      toast('❌ Chyba při importu: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ════════════════════════════════════════════════
+//  GARAGE / BIKES
+// ════════════════════════════════════════════════
+
+function calcRouteDifficulty(route) {
+  const dist = route.totalDist || 0;
+  const elev = route.elevM || route.totalElev || 0;
+  // Score = dist * 0.5 + elev * 0.1 (rough)
+  const score = dist * 0.5 + elev * 0.1;
+  if (score < 15)  return { label: 'Lehká',   cls: 'diff-easy',   ico: '🟢' };
+  if (score < 40)  return { label: 'Střední',  cls: 'diff-medium', ico: '🟡' };
+  if (score < 80)  return { label: 'Těžká',   cls: 'diff-hard',   ico: '🟠' };
+  return              { label: 'Epická',  cls: 'diff-epic',   ico: '🔴' };
+}
+
+let _bikeIconSel = '🚴';
+
+function showAddBikeModal() {
+  document.getElementById('bike-name').value = '';
+  document.getElementById('bike-brand').value = '';
+  document.getElementById('bike-model').value = '';
+  document.getElementById('bike-km').value = '0';
+  document.getElementById('modal-add-bike').classList.add('open');
+  // Icon picker
+  const icons = ['🚴','🚵','⚡','🔴','🔵','🏎️','🌟','💪'];
+  const pick = document.getElementById('bike-icon-pick');
+  if (pick) pick.innerHTML = icons.map(ic =>
+    `<div onclick="selectBikeIcon('${ic}')" id="bico-${ic.codePointAt(0)}" style="font-size:26px;cursor:pointer;padding:4px;border-radius:8px;transition:background 0.2s">${ic}</div>`
+  ).join('');
+  selectBikeIcon('🚴');
+}
+
+function selectBikeIcon(ic) {
+  _bikeIconSel = ic;
+  document.querySelectorAll('[id^="bico-"]').forEach(el => el.style.background = '');
+  const el = document.getElementById(`bico-${ic.codePointAt(0)}`);
+  if (el) el.style.background = 'rgba(255,255,255,0.15)';
+}
+
+function saveBike() {
+  const name = document.getElementById('bike-name').value.trim();
+  if (!name) { toast('❌ Zadej název kola'); return; }
+  const bike = {
+    id:         Date.now().toString(),
+    icon:       _bikeIconSel,
+    name,
+    brand:      document.getElementById('bike-brand').value.trim(),
+    model:      document.getElementById('bike-model').value.trim(),
+    totalKm:    parseFloat(document.getElementById('bike-km').value) || 0,
+    components: [
+      { name: 'Řetěz',         intervalKm: 2500, warnAt: 2200, currentKm: 0 },
+      { name: 'Plášť předek',  intervalKm: 5000, warnAt: 4500, currentKm: 0 },
+      { name: 'Plášť zadek',   intervalKm: 4000, warnAt: 3500, currentKm: 0 },
+      { name: 'Brzdové guma',  intervalKm: 3000, warnAt: 2700, currentKm: 0 },
+      { name: 'Kaseta',        intervalKm: 8000, warnAt: 7000, currentKm: 0 },
+    ],
+  };
+  bikes.push(bike);
+  saveBikes();
+  closeModal('modal-add-bike');
+  renderGarage();
+  toast(`✅ ${name} přidáno do garáže`);
+}
+
+function renderGarage() {
+  const el = document.getElementById('garage-content');
+  if (!el) return;
+
+  if (!bikes.length) {
+    el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text2)">
+      <div style="font-size:48px;margin-bottom:12px">🚲</div>
+      <div style="font-weight:700;margin-bottom:8px">Prázdná garáž</div>
+      <div style="font-size:13px">Přidej své kolo a sleduj opotřebení komponent</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = bikes.map((bike, bi) => {
+    const compsHtml = bike.components.map((c, ci) => {
+      const pct = Math.min((c.currentKm / c.intervalKm) * 100, 100);
+      const worn = c.currentKm >= c.warnAt;
+      const color = pct < 70 ? '#4CAF50' : pct < 90 ? '#FFC107' : '#FF5566';
+      return `<div class="component-row">
+        <span class="comp-name ${worn ? 'comp-warn' : ''}">${c.name}${worn ? ' ⚠️' : ''}</span>
+        <div class="comp-bar-bg"><div class="comp-bar" style="width:${pct.toFixed(0)}%;background:${color}"></div></div>
+        <span class="comp-pct" style="color:${color}">${Math.round(pct)}%</span>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${Math.round(c.currentKm)}/${c.intervalKm}km</span>
+        <button onclick="resetComponent(${bi},${ci})" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:2px 4px">↺</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="bike-card">
+      <div class="bike-card-header">
+        <div class="bike-icon">${bike.icon}</div>
+        <div style="flex:1">
+          <div class="bike-name">${escHtml(bike.name)}</div>
+          <div class="bike-brand">${escHtml(bike.brand)} ${escHtml(bike.model)}</div>
+          <div class="bike-km">${bike.totalKm.toFixed(0)} km celkem</div>
+        </div>
+        <button onclick="deleteBike(${bi})" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Komponenty</div>
+      ${compsHtml}
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn btn-glass btn-sm btn-block" onclick="addKmToBike(${bi})">+ Přidat km</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function resetComponent(bikeIdx, compIdx) {
+  bikes[bikeIdx].components[compIdx].currentKm = 0;
+  saveBikes();
+  renderGarage();
+  toast('✅ Komponenta resetována');
+}
+
+function deleteBike(idx) {
+  if (!confirm(`Smazat ${bikes[idx].name}?`)) return;
+  bikes.splice(idx, 1);
+  saveBikes();
+  renderGarage();
+}
+
+function addKmToBike(idx) {
+  const km = parseFloat(prompt('Kolik km přidat?') || '0');
+  if (!km || km <= 0) return;
+  bikes[idx].totalKm += km;
+  bikes[idx].components.forEach(c => c.currentKm += km);
+  saveBikes();
+  renderGarage();
+  toast(`✅ ${km} km přidáno`);
+}
+
+// ════════════════════════════════════════════════
+//  EXTENDED STATS
+// ════════════════════════════════════════════════
+
+function computePersonalRecords() {
+  const allRecs = routes.flatMap((r, ri) => (r.records || []).map(rec => ({ ...rec, route: r, routeIdx: ri })));
+
+  const prs = {
+    longestKm:    allRecs.reduce((m, r) => (r.distKm || r.route?.totalDist || 0) > ((m?.distKm || m?.route?.totalDist) || 0) ? r : m, null),
+    fastestAvgKmh:allRecs.reduce((m, r) => (r.avgSpeedKmh || 0) > (m?.avgSpeedKmh || 0) ? r : m, null),
+    mostElevM:    allRecs.reduce((m, r) => (r.elevM || 0) > (m?.elevM || 0) ? r : m, null),
+    longestMs:    allRecs.reduce((m, r) => r.totalMs > (m?.totalMs || 0) ? r : m, null),
+    mostWatts:    allRecs.reduce((m, r) => (r.avgWatts || 0) > (m?.avgWatts || 0) ? r : m, null),
+    totalRides:   allRecs.length,
+    totalKm:      allRecs.reduce((s, r) => s + (r.distKm || r.route?.totalDist || 0), 0),
+    totalElev:    allRecs.reduce((s, r) => s + (r.elevM || 0), 0),
+    totalMs:      allRecs.reduce((s, r) => s + (r.totalMs || 0), 0),
+  };
+  return prs;
+}
+
+function renderPersonalRecords(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const pr = computePersonalRecords();
+
+  const fmtRec = (rec, valFn, unit, ico, label) => {
+    if (!rec) return `<div class="pr-card"><div class="pr-ico">${ico}</div><div class="pr-val">—</div><div class="pr-lbl">${label}</div></div>`;
+    const val = valFn(rec);
+    const date = rec.date ? new Date(rec.date).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit'}) : '';
+    return `<div class="pr-card"><div class="pr-ico">${ico}</div><div class="pr-val">${val}${unit}</div><div class="pr-lbl">${label}</div><div class="pr-date">${date} · ${escHtml(rec.route?.name || '')}</div></div>`;
+  };
+
+  const kmVal = r => (r.distKm || r.route?.totalDist || 0).toFixed(1);
+
+  el.innerHTML = `
+    <div style="padding:0 16px 8px;font-weight:800;font-size:15px">🏅 Osobní rekordy</div>
+    <div class="pr-grid">
+      ${fmtRec(pr.longestKm,     kmVal,                           ' km',   '📏', 'Nejdelší jízda')}
+      ${fmtRec(pr.fastestAvgKmh, r => (r.avgSpeedKmh||0).toFixed(1), ' km/h','⚡','Nejvyšší avg. rychlost')}
+      ${fmtRec(pr.mostElevM,     r => Math.round(r.elevM||0),    ' m',    '⛰️', 'Nejvíce výšky')}
+      ${fmtRec(pr.longestMs,     r => fmtTime(r.totalMs),        '',      '⏱️', 'Nejdelší čas')}
+      ${pr.mostWatts ? fmtRec(pr.mostWatts, r => r.avgWatts, ' W', '💪', 'Nejvyšší výkon') : '<div class="pr-card"><div class="pr-ico">💪</div><div class="pr-val">—</div><div class="pr-lbl">Nejvyšší výkon</div></div>'}
+      <div class="pr-card">
+        <div class="pr-ico">🚴</div>
+        <div class="pr-val">${pr.totalRides}</div>
+        <div class="pr-lbl">Celkem jízd</div>
+        <div class="pr-date">${pr.totalKm.toFixed(0)} km · ${fmtDuration(pr.totalMs)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function computeStreak() {
+  const allRecs = routes.flatMap(r => r.records || []);
+  const today = new Date();
+  // Count consecutive weeks (not days — more realistic for cycling)
+  const weeks = new Set();
+  allRecs.forEach(rec => {
+    const dt = new Date(rec.date);
+    const startOfYear = new Date(dt.getFullYear(), 0, 1);
+    const weekKey = `${dt.getFullYear()}-${Math.ceil((dt - startOfYear) / 604800000)}`;
+    weeks.add(weekKey);
+  });
+  const startOfYear = new Date(today.getFullYear(), 0, 1);
+  const curWeek = Math.ceil((today - startOfYear) / 604800000);
+  let streak = 0;
+  for (let w = curWeek; w > 0; w--) {
+    const key = `${today.getFullYear()}-${w}`;
+    if (weeks.has(key)) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function renderHeatCalendar(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const allRecs = routes.flatMap(r => r.records || []);
+  const dayCounts = {};
+  allRecs.forEach(r => {
+    const d = r.date?.slice(0,10);
+    if (d) dayCounts[d] = (dayCounts[d] || 0) + 1;
+  });
+
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - 364);
+
+  let cells = '';
+  let col = 0;
+
+  for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0,10);
+    const count = dayCounts[key] || 0;
+    const heat = count === 0 ? '' : count === 1 ? 'h1' : count === 2 ? 'h2' : count === 3 ? 'h3' : 'h4';
+    const isToday = key === today.toISOString().slice(0,10);
+    const title = `${key}: ${count} jízd`;
+
+    cells += `<div class="heat-cell ${heat} ${isToday ? 'today' : ''}" title="${title}"></div>`;
+    col++;
+  }
+
+  el.innerHTML = `
+    <div style="padding:0 4px;font-size:11px;color:var(--text2);margin-bottom:4px">Aktivita za poslední rok</div>
+    <div class="heat-calendar">${cells}</div>
+    <div style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--text3);padding:0 4px">
+      Méně
+      <div class="heat-cell" style="width:10px;height:10px;flex-shrink:0"></div>
+      <div class="heat-cell h1" style="width:10px;height:10px;flex-shrink:0"></div>
+      <div class="heat-cell h2" style="width:10px;height:10px;flex-shrink:0"></div>
+      <div class="heat-cell h3" style="width:10px;height:10px;flex-shrink:0"></div>
+      <div class="heat-cell h4" style="width:10px;height:10px;flex-shrink:0"></div>
+      Více
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════════
+//  WEATHER (Open-Meteo — free, no key)
+// ════════════════════════════════════════════════
+let _weatherCache = null;
+let _weatherCacheTime = 0;
+
+async function fetchWeather(lat, lon) {
+  const now = Date.now();
+  if (_weatherCache && now - _weatherCacheTime < 30 * 60 * 1000) return _weatherCache;
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=5&timezone=auto`;
+    const res = await fetch(url);
+    const data = await res.json();
+    _weatherCache = data;
+    _weatherCacheTime = now;
+    return data;
+  } catch(e) {
+    console.warn('Weather fetch failed:', e.message);
+    return null;
+  }
+}
+
+function weatherCodeToInfo(code) {
+  if (code === 0) return { ico:'☀️', desc:'Jasno' };
+  if (code <= 2)  return { ico:'🌤️', desc:'Skoro jasno' };
+  if (code <= 3)  return { ico:'☁️', desc:'Zataženo' };
+  if (code <= 48) return { ico:'🌫️', desc:'Mlha' };
+  if (code <= 55) return { ico:'🌦️', desc:'Mrholení' };
+  if (code <= 65) return { ico:'🌧️', desc:'Déšť' };
+  if (code <= 77) return { ico:'❄️', desc:'Sníh' };
+  if (code <= 82) return { ico:'🌧️', desc:'Přeháňky' };
+  if (code <= 99) return { ico:'⛈️', desc:'Bouřka' };
+  return { ico:'🌡️', desc:'Neznámo' };
+}
+
+async function renderWeatherWidget(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '<div style="padding:12px;color:var(--text2);font-size:13px">⏳ Načítám počasí…</div>';
+
+  if (!navigator.geolocation) {
+    el.innerHTML = '<div style="padding:12px;color:var(--text2);font-size:13px">Geolokace není dostupná</div>';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    const data = await fetchWeather(lat, lon);
+    if (!data) { el.innerHTML = '<div style="padding:12px;color:var(--text2)">Počasí nedostupné (offline?)</div>'; return; }
+
+    const cur = data.current;
+    const curInfo = weatherCodeToInfo(cur.weathercode);
+    const daily = data.daily;
+
+    const forecastHtml = (daily.time || []).slice(1, 5).map((day, i) => {
+      const info = weatherCodeToInfo(daily.weathercode[i + 1]);
+      const dayName = new Date(day).toLocaleDateString('cs-CZ', { weekday: 'short' });
+      return `<div class="forecast-item">
+        <div class="forecast-day">${dayName}</div>
+        <div class="forecast-ico">${info.ico}</div>
+        <div class="forecast-temp">${Math.round(daily.temperature_2m_max[i+1])}°</div>
+        <div style="font-size:9px;color:var(--text3)">${daily.precipitation_sum?.[i+1]?.toFixed(0) || 0}mm</div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = `<div class="weather-widget">
+      <div class="weather-current">
+        <div class="weather-ico">${curInfo.ico}</div>
+        <div>
+          <div class="weather-temp">${Math.round(cur.temperature_2m)}°C</div>
+          <div class="weather-desc">${curInfo.desc}</div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div class="weather-detail">💨 ${Math.round(cur.windspeed_10m)} km/h</div>
+          <div class="weather-detail">💧 ${cur.relativehumidity_2m}%</div>
+        </div>
+      </div>
+      <div class="weather-forecast">${forecastHtml}</div>
+    </div>`;
+  }, () => {
+    el.innerHTML = '<div style="padding:12px;color:var(--text2);font-size:13px">Povol přístup k poloze pro zobrazení počasí</div>';
+  });
+}
+
+// ════════════════════════════════════════════════
+//  GPX EXPORT
+// ════════════════════════════════════════════════
+function exportRouteGPX(routeIdx) {
+  const r = routes[routeIdx];
+  if (!r) return;
+
+  const now = new Date().toISOString();
+  const cps = r.checkpoints || [];
+
+  // Build waypoints from checkpoints
+  const wpts = cps.map((cp, i) => {
+    const lat = cp.lat || 0, lon = cp.lon || 0;
+    return `  <wpt lat="${lat}" lon="${lon}">
+    <name>${escHtml(cp.name || `CP ${i+1}`)}</name>
+    <sym>Flag</sym>
+  </wpt>`;
+  }).join('\n');
+
+  // Build track from polyline if available
+  let trkSeg = '';
+  if (r.polyline) {
+    const coords = decodePolyline(r.polyline);
+    const trkpts = coords.map(([lat, lon]) =>
+      `      <trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"></trkpt>`
+    ).join('\n');
+    trkSeg = `  <trk>
+    <name>${escHtml(r.name)}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>`;
+  }
+
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="VeloTimer" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>${escHtml(r.name)}</name>
+    <time>${now}</time>
+    <desc>Vzdálenost: ${r.totalDist || 0} km, Převýšení: ${r.totalElev || 0} m</desc>
+  </metadata>
+${wpts}
+${trkSeg}
+</gpx>`;
+
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${r.name.replace(/[^a-z0-9]/gi,'_')}.gpx`;
+  a.click();
+  toast('✅ GPX exportováno');
+}
+
+// ════════════════════════════════════════════════
+//  TRAINING CALENDAR
+// ════════════════════════════════════════════════
+let calViewDate = new Date();
+
+function changeCalMonth(delta) {
+  calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + delta, 1);
+  renderTrainingCalendar();
+}
+
+function showTrainingTab(tab) {
+  document.getElementById('training-tab-calendar').style.display = tab === 'calendar' ? '' : 'none';
+  document.getElementById('training-tab-workouts').style.display  = tab === 'workouts'  ? '' : 'none';
+  if (tab === 'calendar') renderTrainingCalendar();
+  if (tab === 'workouts') renderWorkouts();
+}
+
+function renderTrainingCalendar() {
+  const el = document.getElementById('cal-days');
+  const lbl = document.getElementById('cal-month-label');
+  if (!el) return;
+
+  const year = calViewDate.getFullYear();
+  const month = calViewDate.getMonth();
+  const months = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+  if (lbl) lbl.textContent = `${months[month]} ${year}`;
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay  = new Date(year, month + 1, 0);
+  const today = new Date().toISOString().slice(0,10);
+
+  // Start from Monday
+  let startDow = firstDay.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // Convert to Mon=0
+
+  const allRecs = routes.flatMap(r => r.records || []);
+  const rideDays = new Set(allRecs.map(r => r.date?.slice(0,10)));
+
+  let html = '';
+
+  // Empty cells before first day
+  for (let i = 0; i < startDow; i++) {
+    html += '<div class="cal-day other-month"></div>';
+  }
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const planned = trainingPlan.find(p => p.date === dateStr);
+    const hasRide = rideDays.has(dateStr);
+    const isToday = dateStr === today;
+
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (hasRide) cls += ' completed';
+    else if (planned) cls += ' planned';
+
+    html += `<div class="${cls}" onclick="clickCalDay('${dateStr}')">${d}</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function clickCalDay(dateStr) {
+  // If ride exists on this day, show it; otherwise show plan dialog
+  const allRecs = routes.flatMap((r,i) => (r.records||[]).map(rec => ({...rec, routeIdx:i, route:r})));
+  const dayRides = allRecs.filter(r => r.date?.slice(0,10) === dateStr);
+
+  if (dayRides.length > 0) {
+    const info = dayRides.map(r => `${r.route.name}: ${fmtTime(r.totalMs)}`).join('\n');
+    toast(`🚴 ${dateStr}: ${dayRides.length} jízda`);
+    return;
+  }
+
+  if (!routes.length) { toast('❌ Nejdříve vytvoř trasu'); return; }
+
+  // Show plan dialog
+  document.getElementById('plan-day-title').textContent = `Plán: ${dateStr}`;
+  document.getElementById('plan-route-sel').innerHTML = routes.map((r,i) => `<option value="${i}">${escHtml(r.name)}</option>`).join('');
+  document.getElementById('plan-workout-sel').innerHTML = `<option value="">Volná jízda</option>` +
+    workouts.map(w => `<option value="${w.id}">${w.icon} ${w.name}</option>`).join('');
+  document.getElementById('plan-notes').value = '';
+  document.getElementById('plan-day-title').dataset.date = dateStr;
+  document.getElementById('modal-plan-day').classList.add('open');
+}
+
+function savePlanDay() {
+  const dateStr = document.getElementById('plan-day-title').dataset.date;
+  if (!dateStr) return;
+  const entry = {
+    id:        Date.now().toString(),
+    date:      dateStr,
+    routeIdx:  parseInt(document.getElementById('plan-route-sel').value),
+    workoutId: document.getElementById('plan-workout-sel').value,
+    notes:     document.getElementById('plan-notes').value.trim(),
+    completed: false,
+  };
+  trainingPlan = trainingPlan.filter(p => p.date !== dateStr);
+  trainingPlan.push(entry);
+  saveTraining();
+  closeModal('modal-plan-day');
+  renderTrainingCalendar();
+  toast('✅ Plán uložen');
+}
+
+function renderWorkouts() {
+  const el = document.getElementById('workouts-list');
+  if (!el) return;
+  el.innerHTML = workouts.map(w => {
+    const totalMin = w.segments.reduce((s,seg) => s + seg.min, 0);
+    const colors = { warmup:'#4B9EFF', cooldown:'#4B9EFF', on:'#FF5566', off:'#4CAF50', steady:'#FFD700', easy:'#4CAF50' };
+    const barsHtml = w.segments.map(seg => {
+      const h = Math.max(4, (seg.pct / 110) * 30);
+      return `<div class="workout-seg-bar" style="height:${h}px;background:${colors[seg.type]||'#aaa'}" title="${seg.type} ${seg.min}min ${seg.pct}%"></div>`;
+    }).join('');
+
+    return `<div class="workout-card">
+      <div class="workout-icon">${w.icon}</div>
+      <div class="workout-info">
+        <div class="workout-name">${w.name}</div>
+        <div class="workout-meta">${totalMin} min · ${w.segments.length} segmentů</div>
+        <div class="workout-bars">${barsHtml}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+//  PB PREDICTION
+// ════════════════════════════════════════════════
+function updatePBPrediction(elapsedMs) {
+  const bar = document.getElementById('pb-predict-bar');
+  const valEl = document.getElementById('pb-predict-val');
+  const deltaEl = document.getElementById('pb-predict-delta');
+  if (!bar || !valEl || !deltaEl) return;
+
+  if (rs.elapsed < 10000 || ghostPbMs <= 0) { bar.style.display = 'none'; return; }
+
+  // Estimate finish time from current pace
+  const cpsDone = rs.cps.filter(c => c.hitTime != null).length;
+  const totalCps = rs.cps.length;
+  const progressFrac = cpsDone / (totalCps + 1);
+
+  if (progressFrac < 0.1) { bar.style.display = 'none'; return; }
+
+  const projectedMs = elapsedMs / progressFrac;
+  bar.style.display = 'flex';
+  valEl.textContent = fmtTime(Math.round(projectedMs));
+
+  const delta = projectedMs - ghostPbMs;
+  const sign = delta > 0 ? '+' : '';
+  deltaEl.textContent = `${sign}${fmtTime(Math.abs(Math.round(delta)))}`;
+  deltaEl.style.color = delta < 0 ? '#4CAF50' : '#FF5566';
+}
+
+// ════════════════════════════════════════════════
+//  POWER CURVE
+// ════════════════════════════════════════════════
+function computePowerCurve() {
+  const allRecs = routes.flatMap(r => r.records || []);
+  const durations = [5/60, 1, 5, 20, 60]; // minutes — use as reference points
+  const labels = ['5s','1m','5m','20m','60m'];
+  const results = durations.map((minDur, i) => {
+    const relevant = allRecs.filter(r => r.avgWatts && r.totalMs > 0);
+    if (!relevant.length) return { label: labels[i], watts: null };
+    const best = Math.max(...relevant.map(r => r.avgWatts || 0));
+    return { label: labels[i], watts: best > 0 ? Math.round(best) : null };
+  });
+  return results;
+}
+
+function renderPowerCurve(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const curve = computePowerCurve();
+  const hasData = curve.some(c => c.watts);
+  if (!hasData) { el.innerHTML = '<div style="padding:12px 16px;color:var(--text2);font-size:12px;text-align:center">Není k dispozici (potřeba Strava data s výkonem)</div>'; return; }
+  const { ftp } = appSettings;
+  const pct = (w) => w && ftp ? Math.round((w / ftp) * 100) + '% FTP' : '';
+  el.innerHTML = `<div class="power-curve-wrap">
+    <div class="power-curve-title">⚡ Power Curve</div>
+    <div class="power-curve-grid">
+      ${curve.map(c => `<div class="pc-item">
+        <div class="pc-val" style="color:${c.watts ? (c.watts > ftp ? '#FF5566' : '#4CAF50') : 'var(--text3)'}">${c.watts ? c.watts + 'W' : '—'}</div>
+        <div class="pc-lbl">${c.label}</div>
+        ${c.watts && ftp ? `<div style="font-size:9px;color:var(--text3)">${pct(c.watts)}</div>` : ''}
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// HR Zones from Strava data
+function renderHRZones(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const allRecs = routes.flatMap(r => r.records || []).filter(r => r.avgHr);
+  if (!allRecs.length) { el.innerHTML = ''; return; }
+  const { maxHr } = appSettings;
+  const zones = [
+    { name:'Z1 Aktivní odpočinek', pct:50, color:'#4B9EFF' },
+    { name:'Z2 Aerobní',          pct:60, color:'#4CAF50' },
+    { name:'Z3 Tempo',            pct:70, color:'#FFD700' },
+    { name:'Z4 Laktátový práh',   pct:80, color:'#FF6B35' },
+    { name:'Z5 VO2 Max',          pct:90, color:'#FF5566' },
+  ];
+  // Estimate time in each zone (rough — from avg HR of each ride)
+  const zoneTime = [0, 0, 0, 0, 0];
+  allRecs.forEach(rec => {
+    const hrPct = (rec.avgHr / maxHr) * 100;
+    const z = hrPct < 60 ? 0 : hrPct < 70 ? 1 : hrPct < 80 ? 2 : hrPct < 90 ? 3 : 4;
+    zoneTime[z] += rec.totalMs || 0;
+  });
+  const total = zoneTime.reduce((a,b) => a+b, 0) || 1;
+  el.innerHTML = `<div style="padding:0 16px 12px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">❤️ HR Zóny</div>
+    <div class="hrz-bar-wrap">${zones.map((z,i) => `<div class="hrz-segment" style="flex:${zoneTime[i]||0.01};background:${z.color}" title="${z.name}: ${Math.round(zoneTime[i]/60000)} min"></div>`).join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+      ${zones.map((z,i) => `<div style="display:flex;align-items:center;gap:8px;font-size:11px">
+        <div style="width:10px;height:10px;border-radius:2px;background:${z.color};flex-shrink:0"></div>
+        <span style="flex:1;color:var(--text2)">${z.name}</span>
+        <span style="font-family:var(--mono);color:var(--text3)">${Math.round((zoneTime[i]/total)*100)}%</span>
+        <span style="font-family:var(--mono)">${Math.round(zoneTime[i]/60000)} min</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 // ── INIT ──────────────────────────────────────────
 curScreen = 'splash';
 renderSplash();
 updateBackground();
+applySettings();
 checkStravaOnStart();
+
+// Check for autosave from interrupted ride
+(function checkAutosave() {
+  const autosaveRaw = localStorage.getItem('vt_ride_autosave');
+  if (autosaveRaw) {
+    try {
+      const save = JSON.parse(autosaveRaw);
+      const age = (Date.now() - save.savedAt) / 1000 / 60; // minutes
+      if (age < 60) {
+        // Autosave found but less than 1 hour old — just clean up for now
+        console.info(`[VeloTimer] Autosave found (${Math.round(age)} min old), route ${save.routeIdx}`);
+      }
+    } catch(e) {}
+    localStorage.removeItem('vt_ride_autosave');
+  }
+})();
 
 // Ripple on all buttons (global delegation)
 document.addEventListener('click', (e) => {
