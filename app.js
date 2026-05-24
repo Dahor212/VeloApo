@@ -653,21 +653,15 @@ function buildTVEntries(r) {
       '→ <span class="tv-hdr-cp">🏁 Cíl</span>';
   }
 
-  // ── My estimated time AT the next target ──
-  // Rule: from the very first second the timer runs, "me" has a refTime
-  // so the row immediately appears and gradually drops as time passes.
+  // ── My time shown in board: always the raw elapsed ──
+  // This creates the "dropping" effect — my live timer value grows,
+  // and I sink through the rankings as it exceeds historical CP times.
+  // (Projected ETA caused confusing inflated numbers; raw elapsed is intuitive.)
   let myETA = null;
   if (rs.finished) {
     myETA = rs.elapsed;
   } else if (rs.running || rs.elapsed > 0) {
-    if (lastHit && lastHit.km > 0) {
-      // Interpolate pace from last-hit CP → project onto next CP distance
-      const distTarget = nextCP ? nextCP.km : (r.totalDist || lastHit.km);
-      myETA = rs.elapsed * (distTarget / lastHit.km);
-    } else {
-      // Before first CP: live elapsed IS the reference (pace unknown, use raw time)
-      myETA = rs.elapsed;
-    }
+    myETA = rs.elapsed;
   }
 
   // ── Historical rides: their ACTUAL time at the same target (nextCpIdx) ──
