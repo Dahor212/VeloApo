@@ -67,22 +67,20 @@ jobs:
           echo "=== wrangler.toml ==="
           cat worker/wrangler.toml
 
-      # ── 5. Deploy Worker (oficiální Cloudflare action) ─────────────────
+      # ── 5. Deploy Worker ───────────────────────────────────────────────
       - name: Deploy Worker
         id: deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          workingDirectory: worker
-          secrets: |
-            STRAVA_CLIENT_ID
-            STRAVA_CLIENT_SECRET
-            PWA_ORIGIN
         env:
-          STRAVA_CLIENT_ID:     ${{ secrets.STRAVA_CLIENT_ID }}
-          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
-          PWA_ORIGIN:           https://dahor212.github.io
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          cd worker
+          set +e   # nezastaví script při chybě — vždy vidíme output
+          npx wrangler deploy --log-level debug
+          EXIT=$?
+          set -e
+          echo "=== wrangler exit code: $EXIT ==="
+          exit $EXIT
 
       # ── 6. Zjisti Worker URL ───────────────────────────────────────────
       - name: Get Worker URL
