@@ -1116,12 +1116,401 @@ body {
 .strava-item-right { flex-shrink: 0; }
 .strava-badge-done { font-size: 12px; color: var(--green); font-weight: 700; }
 .di-badge { margin-left: auto; font-size: 11px; color: var(--orange); font-weight: 700; background: rgba(255,122,61,0.15); border-radius: 8px; padding: 2px 8px; }
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════ */
+
+/* ── Ripple ──────────────────────────────── */
+.btn { position: relative; overflow: hidden; }
+.ripple {
+  position: absolute; border-radius: 50%;
+  transform: scale(0); animation: rippleAnim 0.5s linear;
+  background: rgba(255,255,255,0.25); pointer-events: none;
+}
+@keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+/* ── Toast (slide from right) ─────────────── */
+.toast {
+  position: fixed; bottom: 90px; right: 16px;
+  background: var(--bg-glass); backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  color: var(--text); padding: 12px 18px; border-radius: 14px;
+  font-size: 14px; font-weight: 600; z-index: 9999;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  transform: translateX(120%); opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+  max-width: 280px;
+}
+.toast.show { transform: translateX(0); opacity: 1; }
+
+/* ── Confetti canvas ─────────────────────── */
+#confetti-canvas {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+}
+
+/* ── Achievement popup ────────────────────── */
+.achievement-popup {
+  position: fixed; bottom: -200px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid var(--gold, #FFD700);
+  border-radius: 20px; padding: 20px 28px; z-index: 9997;
+  text-align: center; min-width: 260px;
+  box-shadow: 0 0 40px rgba(255,215,0,0.3);
+  transition: bottom 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+.achievement-popup.show { bottom: 100px; }
+.achievement-popup .ach-icon { font-size: 40px; display: block; margin-bottom: 8px; }
+.achievement-popup .ach-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--gold, #FFD700); margin-bottom: 4px; }
+.achievement-popup .ach-text { font-size: 16px; font-weight: 800; }
+
+/* ── PB Star burst ──────────────────────── */
+.star-burst {
+  position: fixed; pointer-events: none; z-index: 9996;
+}
+.star-particle {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%;
+  animation: starFly 0.8s ease-out forwards;
+}
+@keyframes starFly {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+}
+
+/* ── Digit flip timer ─────────────────────── */
+.flip-clock {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--mono); justify-content: center;
+}
+.flip-digit {
+  position: relative; width: 36px; height: 52px;
+  perspective: 400px;
+}
+.flip-digit .flip-card {
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 800; color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative; transform-style: preserve-3d;
+}
+.flip-digit.flipping .flip-card {
+  animation: digitFlip 0.25s ease-in-out;
+}
+@keyframes digitFlip {
+  0%   { transform: rotateX(0deg); }
+  50%  { transform: rotateX(-90deg); }
+  100% { transform: rotateX(0deg); }
+}
+.flip-sep {
+  font-size: 28px; font-weight: 800; color: rgba(255,255,255,0.7);
+  margin-bottom: 4px; line-height: 1;
+}
+
+/* ── Count-up numbers ──────────────────── */
+.count-up { transition: all 0.3s; }
+
+/* ── Checkpoint pulse ──────────────────── */
+.cp-pulse-ring {
+  position: fixed; top: 50%; left: 50%;
+  width: 0; height: 0; border-radius: 50%;
+  border: 3px solid var(--green);
+  transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 9995;
+  animation: cpPulseRing 0.6s ease-out forwards;
+}
+@keyframes cpPulseRing {
+  0%   { width: 0; height: 0; opacity: 1; }
+  100% { width: 200px; height: 200px; opacity: 0; }
+}
+
+/* ── Card flip (route card) ─────────────── */
+.route-card-wrap {
+  perspective: 800px;
+}
+.route-card-inner {
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.route-card-wrap.flipped .route-card-inner {
+  transform: rotateY(180deg);
+}
+.route-card-front, .route-card-back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.route-card-back {
+  position: absolute; inset: 0;
+  transform: rotateY(180deg);
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border-radius: var(--r-lg);
+  padding: 14px;
+  display: flex; flex-direction: column; justify-content: center; gap: 8px;
+}
+.card-back-stat {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.card-back-stat:last-child { border-bottom: none; }
+.card-back-stat .cbs-label { color: var(--text2); }
+.card-back-stat .cbs-val { font-weight: 700; font-family: var(--mono); }
+
+/* ── Sparklines ────────────────────────── */
+.route-sparkline {
+  display: block; margin-top: 6px;
+}
+.route-sparkline svg { overflow: visible; }
+
+/* ── Gauge ─────────────────────────────── */
+.gauge-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.gauge-svg { overflow: visible; }
+
+/* ── Elevation profile ───────────────────── */
+.elev-profile-wrap {
+  background: rgba(0,0,0,0.25); border-radius: 12px;
+  padding: 12px 16px 8px; margin: 8px 0;
+  position: relative; overflow: hidden;
+}
+.elev-profile-wrap svg { display: block; width: 100%; overflow: visible; }
+.elev-path {
+  fill: none; stroke: var(--blue, #4B9EFF);
+  stroke-width: 2.5;
+  stroke-dasharray: 1000; stroke-dashoffset: 1000;
+  animation: drawPath 1.5s ease-out forwards;
+}
+.elev-fill {
+  opacity: 0.15; fill: var(--blue, #4B9EFF);
+  stroke: none;
+  animation: fadeInFill 1.5s ease-out forwards;
+}
+@keyframes drawPath {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes fadeInFill {
+  from { opacity: 0; }
+  to   { opacity: 0.15; }
+}
+.elev-label {
+  font-size: 10px; fill: var(--text3, rgba(255,255,255,0.4));
+  font-family: monospace;
+}
+
+/* ── Map container ───────────────────────── */
+#strava-route-map {
+  width: 100%; height: 220px; border-radius: 12px;
+  overflow: hidden; margin: 12px 0;
+  background: #1a1a2e;
+}
+
+/* ── Ghost timer ─────────────────────────── */
+.ghost-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; margin: 4px 0;
+  background: rgba(255,255,255,0.04); border-radius: 10px;
+  font-size: 13px;
+}
+.ghost-delta {
+  font-family: var(--mono); font-weight: 700; font-size: 15px;
+}
+.ghost-delta.ahead  { color: var(--green, #4CAF50); }
+.ghost-delta.behind { color: var(--red, #FF5566); }
+
+/* ── Compare rides ────────────────────────── */
+.compare-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.compare-table th {
+  padding: 8px 10px; text-align: left; font-size: 11px;
+  color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.compare-table td {
+  padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: var(--mono); font-size: 12px;
+}
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-better { color: var(--green, #4CAF50); font-weight: 700; }
+.compare-worse  { color: var(--red, #FF5566); }
+
+/* ── Goals section ────────────────────────── */
+.goal-card {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 10px;
+  backdrop-filter: blur(12px);
+}
+.goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.goal-title { font-size: 14px; font-weight: 700; }
+.goal-progress-bg {
+  height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;
+}
+.goal-progress-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--blue, #4B9EFF), var(--green, #4CAF50));
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 0%;
+}
+.goal-stats { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text2); font-family: var(--mono); }
+
+/* ── Strava route creator ─────────────────── */
+#screen-strava-creator .strava-detail-stat {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.sds-item {
+  flex: 1; min-width: 80px;
+  background: rgba(0,0,0,0.25); border-radius: 10px;
+  padding: 10px; text-align: center;
+}
+.sds-val { font-size: 18px; font-weight: 800; font-family: var(--mono); }
+.sds-lbl { font-size: 10px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+.perf-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.06); border-radius: 8px;
+  padding: 5px 10px; font-size: 12px; font-family: var(--mono);
+  margin: 3px;
+}
+
+/* ═══════════════════════════════════════════════
+   TABLET / DESKTOP LAYOUT  (≥ 768 px)
+═══════════════════════════════════════════════ */
+#tablet-sidebar { display: none; }
+
+@media (min-width: 768px) {
+  #app {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 100vh;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* Left sidebar — always visible on tablet+ */
+  #tablet-sidebar {
+    display: flex; flex-direction: column;
+    background: rgba(10,10,20,0.85); backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255,255,255,0.07);
+    overflow-y: auto; z-index: 10;
+    grid-row: 1;
+  }
+  .sidebar-logo {
+    padding: 24px 20px 12px;
+    font-size: 18px; font-weight: 900; letter-spacing: -0.5px;
+  }
+  .sidebar-stats {
+    display: flex; gap: 8px; padding: 0 16px 16px; flex-wrap: wrap;
+  }
+  .sidebar-stat {
+    flex: 1; min-width: 60px;
+    background: rgba(255,255,255,0.05); border-radius: 10px;
+    padding: 8px; text-align: center;
+  }
+  .sidebar-stat-val { font-size: 16px; font-weight: 800; font-family: var(--mono); }
+  .sidebar-stat-lbl { font-size: 9px; color: var(--text2); }
+  .sidebar-nav {
+    display: flex; flex-direction: column; gap: 2px; padding: 0 8px;
+  }
+  .sidebar-nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-radius: 10px; cursor: pointer;
+    font-size: 14px; font-weight: 600; transition: background 0.2s;
+    color: var(--text2);
+  }
+  .sidebar-nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .sidebar-nav-item.active { background: rgba(255,255,255,0.1); color: var(--text); }
+  .sidebar-nav-ico { font-size: 16px; width: 22px; text-align: center; }
+  .sidebar-routes-section { padding: 12px 8px 0; flex: 1; }
+  .sidebar-routes-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text3); padding: 0 10px 8px;
+  }
+  .sidebar-route-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    font-size: 13px; transition: background 0.2s;
+  }
+  .sidebar-route-item:hover { background: rgba(255,255,255,0.05); }
+  .sidebar-route-item.active { background: rgba(255,255,255,0.09); font-weight: 700; }
+  .sidebar-route-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--blue, #4B9EFF); flex-shrink: 0;
+  }
+
+  /* Main content area */
+  #app > .screen { grid-column: 2; }
+
+  /* Hide mobile bottom nav and drawer on tablet */
+  #bottom-nav, #drawer, #drawer-ov { display: none !important; }
+
+  /* Screens fill the right column */
+  .screen { height: 100vh; }
+}
+
+@media (min-width: 1024px) {
+  #home-routes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+}
 </style>
 </head>
 <body>
 
 <!-- background layer -->
 <div id="app-bg"></div>
+
+<!-- Confetti canvas -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Achievement popup -->
+<div class="achievement-popup" id="achievement-popup">
+  <span class="ach-icon" id="ach-icon">🏆</span>
+  <div class="ach-title">Nový úspěch!</div>
+  <div class="ach-text" id="ach-text">—</div>
+</div>
+
+<div id="app">
+
+<!-- Tablet sidebar (hidden on mobile) -->
+<div id="tablet-sidebar">
+  <div class="sidebar-logo">🚴 VeloTimer</div>
+  <div class="sidebar-stats">
+    <div class="sidebar-stat">
+      <div class="sidebar-stat-val" id="sb-rides">0</div>
+      <div class="sidebar-stat-lbl">jízd</div>
+    </div>
+    <div class="sidebar-stat">
+      <div class="sidebar-stat-val" id="sb-km">0</div>
+      <div class="sidebar-stat-lbl">km</div>
+    </div>
+    <div class="sidebar-stat">
+      <div class="sidebar-stat-val" id="sb-routes">0</div>
+      <div class="sidebar-stat-lbl">tras</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-nav-item active" id="sb-nav-home" onclick="navTo('home',true)">
+      <span class="sidebar-nav-ico">🏠</span> Domů
+    </div>
+    <div class="sidebar-nav-item" id="sb-nav-stats" onclick="navTo('stats')">
+      <span class="sidebar-nav-ico">📊</span> Statistiky
+    </div>
+    <div class="sidebar-nav-item" id="sb-nav-add" onclick="navTo('add')">
+      <span class="sidebar-nav-ico">➕</span> Nová trasa
+    </div>
+    <div class="sidebar-nav-item" id="sb-nav-strava" onclick="openStravaConnect()">
+      <span class="sidebar-nav-ico">🟠</span> Strava
+    </div>
+  </nav>
+  <div class="sidebar-routes-section">
+    <div class="sidebar-routes-title">Trasy</div>
+    <div id="sidebar-routes-list"></div>
+  </div>
+</div>
 
 <!-- ═══════════ DRAWER ═══════════ -->
 <div class="drawer-ov" id="drawer-ov" onclick="closeDrawer()"></div>
@@ -1295,6 +1684,9 @@ body {
       <div style="height: 20px;"></div>
       <button class="btn btn-blue btn-block btn-lg" onclick="startRide()">▶ Zahájit jízdu</button>
       <div style="height: 10px;"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn btn-glass btn-block btn-sm" onclick="showCompareRides()">⚡ Srovnat jízdy</button>
+      </div>
       <button class="btn btn-outline btn-block btn-sm" onclick="deleteRoute()" style="color:var(--red);border-color:rgba(255,85,102,0.3);">🗑 Smazat trasu</button>
       <div style="height: 30px;"></div>
     </div>
@@ -1419,6 +1811,14 @@ body {
   <div class="scroll">
     <div class="timer-block">
       <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
+      <div id="flip-clock-wrap" style="margin-top:6px;display:none;"></div>
+    </div>
+
+    <div class="ghost-bar" id="ghost-bar" style="display:none;margin:0 16px;">
+      <span>👻 PB</span>
+      <span id="ghost-pb-time" style="font-family:var(--mono);color:var(--text2);font-size:12px">—</span>
+      <span style="flex:1"></span>
+      <span class="ghost-delta" id="ghost-delta">—</span>
     </div>
 
     <!-- TV BOARD -->
@@ -1540,7 +1940,9 @@ body {
   <div class="hdr">
     <div class="hdr-menu-btn" onclick="openDrawer()"><span></span></div>
     <div class="hdr-title">Statistiky</div>
-    <div></div>
+    <div class="hdr-right">
+      <button class="btn btn-glass btn-sm" onclick="document.getElementById('modal-goals').classList.add('open'); renderGoals()">🎯 Cíle</button>
+    </div>
   </div>
   <div class="scroll">
     <div class="stats-hero-banner" id="stats-hero-banner">
@@ -1598,6 +2000,57 @@ body {
   </div>
 </div>
 
+<!-- ═══════════ STRAVA ROUTE CREATOR ═══════════ -->
+<div id="screen-strava-creator" class="screen">
+  <div class="hdr">
+    <div class="hdr-back" onclick="goBack()">‹</div>
+    <div class="hdr-title">Vytvořit trasu</div>
+    <div class="hdr-right"></div>
+  </div>
+  <div class="scroll" style="padding:16px">
+    <!-- Activity stats preview -->
+    <div class="strava-detail-stat" id="src-stats"></div>
+    <!-- Elevation profile -->
+    <div class="elev-profile-wrap" id="src-elev-wrap" style="display:none">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Výškový profil</div>
+      <svg id="src-elev-svg" height="80" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+    </div>
+    <!-- Map -->
+    <div id="strava-route-map" style="display:none"></div>
+    <!-- Performance badges -->
+    <div id="src-perf-badges" style="margin-bottom:12px"></div>
+    <!-- Edit form -->
+    <div class="fgrp">
+      <label class="lbl">Název trasy</label>
+      <input class="inp" id="src-name" type="text" placeholder="Název trasy">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fgrp">
+        <label class="lbl">Vzdálenost (km)</label>
+        <input class="inp" id="src-dist" type="number" step="0.1" min="0">
+      </div>
+      <div class="fgrp">
+        <label class="lbl">Převýšení (m)</label>
+        <input class="inp" id="src-elev" type="number" step="1" min="0">
+      </div>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Popis (volitelný)</label>
+      <textarea class="inp" id="src-desc" rows="2" placeholder="Poznámky k trase..."></textarea>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Wallpaper</label>
+      <div id="src-wall-pick" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text2)">
+      💡 Jízda ze Strava bude automaticky přidána jako první záznam (bez mezičasů).
+    </div>
+    <button class="btn btn-blue btn-block btn-lg" style="margin-top:16px" onclick="confirmCreateRouteFromStrava()">
+      Vytvořit trasu
+    </button>
+  </div>
+</div>
+
 <!-- Modals -->
 <div class="modal-ov" id="modal-abort">
   <div class="modal-sheet">
@@ -1641,6 +2094,49 @@ body {
     </div>
   </div>
 </div>
+
+<!-- Compare rides modal -->
+<div class="modal-ov" id="modal-compare">
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-title">⚡ Srovnání jízd</div>
+    <div id="compare-content"></div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn btn-glass btn-block" onclick="closeModal('modal-compare')">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+<!-- Goals modal -->
+<div class="modal-ov" id="modal-goals">
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-title">🎯 Cíle</div>
+    <div id="goals-content"></div>
+    <div style="margin-top:12px">
+      <button class="btn btn-blue btn-block" onclick="showAddGoalForm()">+ Přidat cíl</button>
+    </div>
+    <div id="add-goal-form" style="display:none;margin-top:12px">
+      <div class="fgrp">
+        <label class="lbl">Typ cíle</label>
+        <select class="inp" id="goal-type">
+          <option value="weekly_km">Týdenní km</option>
+          <option value="monthly_km">Měsíční km</option>
+          <option value="yearly_km">Roční km</option>
+          <option value="yearly_rides">Roční počet jízd</option>
+        </select>
+      </div>
+      <div class="fgrp">
+        <label class="lbl">Cíl</label>
+        <input class="inp" id="goal-target" type="number" placeholder="100">
+      </div>
+      <button class="btn btn-blue btn-block btn-sm" onclick="saveGoal()">Uložit cíl</button>
+    </div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn btn-glass btn-block" onclick="closeModal('modal-goals')">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- close #app -->
 
 <script src="app.js"></script>
 </body>

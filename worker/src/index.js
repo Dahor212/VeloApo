@@ -16,6 +16,12 @@ export default {
     }
 
     try {
+      // Dynamic routes — check before switch
+      if (url.pathname.startsWith('/api/activity/')) {
+        if (url.pathname.endsWith('/streams')) return apiActivityStreams(url, env, origin);
+        return apiActivityDetail(url, env, origin);
+      }
+
       switch (url.pathname) {
         case '/':              return ok({ service: 'VeloApo Strava Worker', ok: true }, origin);
         case '/auth/login':    return authLogin(url, env, origin);
@@ -131,6 +137,68 @@ async function apiActivities(url, env, origin) {
     }));
 
   return ok({ activities }, origin);
+}
+
+// ── API: activity detail ──────────────────────────────────────────────────────
+async function apiActivityDetail(url, env, origin) {
+  const token = await getValidToken(env);
+  if (!token) return ok({ error: 'not_authenticated' }, origin, 401);
+  const id = url.pathname.split('/').pop();
+  const res = await fetch(`${STRAVA_API}/activities/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) return ok({ error: 'strava_api_error' }, origin, 502);
+  const a = await res.json();
+  return ok({
+    id: a.id,
+    name: a.name,
+    date: a.start_date,
+    distKm: parseFloat((a.distance / 1000).toFixed(2)),
+    durationMs: (a.moving_time || 0) * 1000,
+    elapsedMs: (a.elapsed_time || 0) * 1000,
+    elevM: Math.round(a.total_elevation_gain || 0),
+    elevHigh: Math.round(a.elev_high || 0),
+    elevLow: Math.round(a.elev_low || 0),
+    avgSpeedKmh: parseFloat(((a.average_speed || 0) * 3.6).toFixed(1)),
+    maxSpeedKmh: parseFloat(((a.max_speed || 0) * 3.6).toFixed(1)),
+    avgWatts: a.average_watts || null,
+    maxWatts: a.max_watts || null,
+    weightedWatts: a.weighted_average_watts || null,
+    kilojoules: a.kilojoules || null,
+    avgHr: a.average_heartrate || null,
+    maxHr: a.max_heartrate || null,
+    avgCadence: a.average_cadence || null,
+    calories: a.calories || null,
+    sufferScore: a.suffer_score || null,
+    avgTemp: a.average_temp || null,
+    polyline: a.map?.summary_polyline || null,
+    startLatlng: a.start_latlng || null,
+    description: a.description || '',
+    deviceName: a.device_name || null,
+    prCount: a.pr_count || 0,
+  }, origin);
+}
+
+// ── API: activity streams ─────────────────────────────────────────────────────
+async function apiActivityStreams(url, env, origin) {
+  const token = await getValidToken(env);
+  if (!token) return ok({ error: 'not_authenticated' }, origin, 401);
+  const parts = url.pathname.split('/');
+  const id = parts[parts.length - 2];
+  const keys = 'altitude,distance,velocity_smooth,heartrate,watts,cadence';
+  const res = await fetch(`${STRAVA_API}/activities/${id}/streams?keys=${keys}&key_by_type=true`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) return ok({ error: 'strava_api_error', streams: {} }, origin, 502);
+  const streams = await res.json();
+  const result = {};
+  if (streams.altitude)         result.altitude  = streams.altitude.data;
+  if (streams.distance)         result.distance  = streams.distance.data;
+  if (streams.velocity_smooth)  result.speed     = streams.velocity_smooth.data.map(v => parseFloat((v * 3.6).toFixed(1)));
+  if (streams.heartrate)        result.heartrate = streams.heartrate.data;
+  if (streams.watts)            result.watts     = streams.watts.data;
+  if (streams.cadence)          result.cadence   = streams.cadence.data;
+  return ok({ streams: result }, origin);
 }
 
 // ── Token refresh helper ──────────────────────────────────────────────────────

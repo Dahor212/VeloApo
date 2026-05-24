@@ -31,6 +31,9 @@ let selectedWallpaperGPX = DEFAULT_WALL;
 let navStack = [];   // navigation history for goBack()
 let sortMode  = 'default'; // 'default' | 'name' | 'dist' | 'rides'
 let stravaConnected = false;
+let goals = JSON.parse(localStorage.getItem('vt_goals') || '[]');
+let stravaCreatorActivity = null;  // activity being imported as new route
+let ghostPbMs = 0;  // PB time for ghost comparison
 
 // ── RIDE STATE ────────────────────────────────────
 let rs = {
@@ -76,7 +79,9 @@ function navTo(name, clearStack) {
   if (name === 'add')    initAddScreen();
   if (name === 'stats')  renderStats();
   if (name === 'strava') renderStravaScreen();
+  // strava-creator: no extra render needed, openStravaRouteCreator sets up the screen
   showScreen(name);
+  updateSidebar();
 }
 
 function renderSplash() {
@@ -100,6 +105,8 @@ function goBack() {
   if (prev === 'stats')  { renderStats();  showScreen('stats'); }
   if (prev === 'add')    { initAddScreen(); showScreen('add'); }
   if (prev === 'strava') { renderStravaScreen(); showScreen('strava'); }
+  if (prev === 'strava-creator') { showScreen('strava-creator'); }
+  updateSidebar();
 }
 
 function updateBackground() {
@@ -207,31 +214,67 @@ function renderHome() {
     const pb   = r.records?.length ? r.records[0] : null;
     const wall = wallpaperUrl(r.wallpaper || DEFAULT_WALL);
     const dist = r.totalDist ? r.totalDist.toFixed(1) : '—';
-    return `<div class="route-card" onclick="openDetail(${i})">
-      <div class="route-card-bg" style="background-image:url(${wall})"></div>
-      <div class="route-card-grad"></div>
-      <div class="route-card-actions">
-        <div class="rc-btn" onclick="event.stopPropagation();openEdit(${i})">✏️</div>
-      </div>
-      <div class="route-card-body">
-        <div class="route-card-top">
-          <div>
-            <div class="route-card-name">${r.name}</div>
+    const totalRides = (r.records||[]).length;
+    const avgTimeMs = totalRides > 0 ? r.records.reduce((s,rc)=>s+rc.totalMs,0)/totalRides : 0;
+    return `<div class="route-card-wrap" id="route-card-${i}">
+      <div class="route-card-inner">
+        <div class="route-card-front">
+          <div class="route-card" onclick="openDetail(${i})">
+            <div class="route-card-bg" style="background-image:url(${wall})"></div>
+            <div class="route-card-grad"></div>
+            <div class="route-card-actions">
+              <div class="rc-btn" onclick="event.stopPropagation();openEdit(${i})">✏️</div>
+              <div class="rc-btn" onclick="event.stopPropagation();toggleCardFlip(${i})" title="Statistiky">↔</div>
+            </div>
+            <div class="route-card-body">
+              <div class="route-card-top">
+                <div>
+                  <div class="route-card-name">${r.name}</div>
+                </div>
+                <div class="route-card-badge">${r.type === 'gpx' ? 'GPX' : 'Manual'}</div>
+              </div>
+              <div>
+                <div class="route-card-stats">
+                  <span>📏 <strong>${dist}</strong> km</span>
+                  <span>⛰ <strong>+${r.totalElev||0}</strong> m</span>
+                  <span>🏁 <strong>${(r.checkpoints||[]).length}</strong> CP</span>
+                  <span>📊 <strong>${totalRides}</strong> jízd</span>
+                </div>
+                ${pb ? `<div class="route-card-pb">🏆 PB: ${fmtTime(pb.totalMs)}</div>` : ''}
+                <div id="spark-${i}"></div>
+              </div>
+            </div>
           </div>
-          <div class="route-card-badge">${r.type === 'gpx' ? 'GPX' : 'Manual'}</div>
         </div>
-        <div>
-          <div class="route-card-stats">
-            <span>📏 <strong>${dist}</strong> km</span>
-            <span>⛰ <strong>+${r.totalElev||0}</strong> m</span>
-            <span>🏁 <strong>${(r.checkpoints||[]).length}</strong> CP</span>
-            <span>📊 <strong>${(r.records||[]).length}</strong> jízd</span>
-          </div>
-          ${pb ? `<div class="route-card-pb">🏆 PB: ${fmtTime(pb.totalMs)}</div>` : ''}
+        <div class="route-card-back">
+          <div style="font-size:15px;font-weight:800;margin-bottom:8px;">${r.name}</div>
+          <div class="card-back-stat"><span class="cbs-label">Počet jízd</span><span class="cbs-val">${totalRides}</span></div>
+          <div class="card-back-stat"><span class="cbs-label">Nejlepší čas</span><span class="cbs-val">${pb ? fmtTime(pb.totalMs) : '—'}</span></div>
+          <div class="card-back-stat"><span class="cbs-label">Průměr</span><span class="cbs-val">${avgTimeMs > 0 ? fmtTime(avgTimeMs) : '—'}</span></div>
+          <div class="card-back-stat"><span class="cbs-label">Vzdálenost</span><span class="cbs-val">${dist} km</span></div>
+          <div class="card-back-stat"><span class="cbs-label">Převýšení</span><span class="cbs-val">+${r.totalElev||0} m</span></div>
+          <button class="btn btn-glass btn-sm btn-block" style="margin-top:8px" onclick="toggleCardFlip(${i})">↩ Zpět</button>
         </div>
       </div>
     </div>`;
   }).join('');
+
+  // Animate count-up stats
+  setTimeout(() => {
+    document.querySelectorAll('.qs-val').forEach(el2 => {
+      const val = parseFloat(el2.textContent);
+      if (!isNaN(val) && val > 0) animateCountUp(el2, val);
+    });
+    // Sparklines
+    indexed.forEach(({ r, i }) => {
+      const sparkEl = document.getElementById(`spark-${i}`);
+      if (sparkEl && r.records?.length >= 2) {
+        const times = r.records.slice(0,8).map(rec => rec.totalMs/1000/60);
+        renderSparkline(sparkEl, times.reverse());
+      }
+    });
+    updateSidebar();
+  }, 0);
 }
 
 function cycleSortMode() {
@@ -299,11 +342,18 @@ function renderLeaderboard(elId, r) {
     const diff = rec.totalMs - pb;
     const diffStr = i === 0 ? '🏆 PB' : `+${fmtTime(diff)}`;
     const date = new Date(rec.date).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit',year:'2-digit'});
-    return `<div class="lb-row">
+    const perfBadges = [];
+    if (rec.avgWatts)   perfBadges.push(`<span class="perf-badge">⚡ ${rec.avgWatts}W</span>`);
+    if (rec.avgHr)      perfBadges.push(`<span class="perf-badge">❤️ ${rec.avgHr}</span>`);
+    if (rec.avgCadence) perfBadges.push(`<span class="perf-badge">🔄 ${rec.avgCadence}rpm</span>`);
+    if (rec.calories)   perfBadges.push(`<span class="perf-badge">🔥 ${rec.calories}kcal</span>`);
+    const perfHtml = perfBadges.length ? `<div style="margin-top:4px">${perfBadges.join('')}</div>` : '';
+    return `<div class="lb-row" style="flex-wrap:wrap">
       <div class="lb-pos ${medals[i]||''}">${i+1}</div>
       <div class="lb-time">${fmtTime(rec.totalMs)}</div>
       <div class="lb-diff ${i===0?'sp-fast':'sp-slow'}">${diffStr}</div>
       <div class="lb-date">${date}</div>
+      ${perfHtml ? `<div style="width:100%;padding-left:38px">${perfHtml}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -539,6 +589,18 @@ function startRide() {
   renderRideCPs();
   renderTVBoard();
   setTimeout(()=>drawElevation(r,'ride-elev',90,true), 30);
+  // Set ghost PB
+  const recs = routes[viewIdx]?.records;
+  if (recs?.length > 0) {
+    ghostPbMs = recs[0].totalMs;  // records[0] is best time (sorted ascending)
+  } else {
+    ghostPbMs = 0;
+  }
+  // Init flip clock
+  _flipDigits = {};
+  initFlipClock('flip-clock-wrap');
+  const fcWrap = document.getElementById('flip-clock-wrap');
+  if (fcWrap) fcWrap.style.display = 'block';
   showScreen('ride');
 }
 
@@ -594,6 +656,8 @@ function updateRideUI() {
   const cs = String(Math.floor((ms%1000)/10)).padStart(2,'0');
   document.getElementById('timer-main').innerHTML =
     `${m}:${String(s).padStart(2,'0')}<span class="timer-ms" id="timer-ms">.${cs}</span>`;
+  updateFlipClock(ms);
+  updateGhostBar(ms);
   document.getElementById('s-time').textContent = fmtTime(ms);
 
   const r = routes[viewIdx];
@@ -817,6 +881,7 @@ function hitCP(idx) {
   rs._tvLastUpdate = -1; // force immediate TV board refresh
   if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
   toast(`✓ CP${idx+1}: ${fmtTime(ms)}`);
+  showCpPulse();
   // CP pulse animation on timer
   const timerEl = document.getElementById('timer-main');
   if (timerEl) {
@@ -905,6 +970,16 @@ function saveRecord(ms) {
   r.records.push(rec);
   r.records.sort((a,b) => a.totalMs - b.totalMs);
   saveRoutes();
+  // PB/first ride detection
+  const allTimes = r.records.map(rec2 => rec2.totalMs);
+  if (allTimes.length === 1) {
+    showAchievement('🎉', `První jízda na trase ${r.name}!`);
+  } else if (allTimes[0] === ms) {
+    // New PB!
+    launchConfetti();
+    showAchievement('🏆', `Nový osobní rekord na ${r.name}!`);
+    starBurst(window.innerWidth/2, window.innerHeight/2);
+  }
 }
 
 function showResults(ms) {
@@ -1374,12 +1449,7 @@ function downsample(arr, n) {
   return out;
 }
 
-function toast(msg) {
-  const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(()=>t.remove(), 2100);
-}
+// toast() is defined in ANIMATION UTILITIES section above
 
 function saveRoutes() { localStorage.setItem('vt_routes', JSON.stringify(routes)); }
 
@@ -1402,6 +1472,300 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     }
     return this;
   };
+}
+
+// ════════════════════════════════════════════════
+//  ANIMATION UTILITIES
+// ════════════════════════════════════════════════
+
+// ── Ripple effect ────────────────────────────────
+function addRipple(e) {
+  const btn = e.currentTarget;
+  const circle = document.createElement('span');
+  const diameter = Math.max(btn.clientWidth, btn.clientHeight);
+  const radius = diameter / 2;
+  const rect = btn.getBoundingClientRect();
+  circle.style.cssText = `width:${diameter}px;height:${diameter}px;left:${e.clientX - rect.left - radius}px;top:${e.clientY - rect.top - radius}px`;
+  circle.classList.add('ripple');
+  btn.querySelector('.ripple')?.remove();
+  btn.appendChild(circle);
+}
+
+// ── Toast (slide from right) ──────────────────────
+function toast(msg, duration = 2800) {
+  let el = document.getElementById('toast-el');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast-el';
+    el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ── Confetti ─────────────────────────────────────
+function launchConfetti(duration = 3000) {
+  const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const colors = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F'];
+  const particles = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: -10,
+    r: Math.random() * 6 + 3,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vx: (Math.random() - 0.5) * 4,
+    vy: Math.random() * 4 + 2,
+    rot: Math.random() * 360,
+    rotV: (Math.random() - 0.5) * 10,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle',
+  }));
+  const start = Date.now();
+  function frame() {
+    if (Date.now() - start > duration) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rotV; p.vy += 0.05;
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot * Math.PI/180);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'circle') { ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fill(); }
+      else { ctx.fillRect(-p.r, -p.r/2, p.r*2, p.r); }
+      ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── Achievement popup ─────────────────────────────
+function showAchievement(icon, text) {
+  const popup = document.getElementById('achievement-popup');
+  if (!popup) return;
+  document.getElementById('ach-icon').textContent = icon;
+  document.getElementById('ach-text').textContent = text;
+  popup.classList.add('show');
+  setTimeout(() => popup.classList.remove('show'), 3500);
+}
+
+// ── Star burst on save ────────────────────────────
+function starBurst(x, y) {
+  const container = document.createElement('div');
+  container.className = 'star-burst';
+  container.style.cssText = `left:${x}px;top:${y}px`;
+  const colors = ['#FFD700','#FF6B6B','#4ECDC4','#96CEB4','#DDA0DD'];
+  for (let i = 0; i < 10; i++) {
+    const p = document.createElement('div');
+    p.className = 'star-particle';
+    const angle = (i / 10) * Math.PI * 2;
+    const dist = 40 + Math.random() * 40;
+    p.style.cssText = `background:${colors[i%colors.length]};--dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist}px`;
+    container.appendChild(p);
+  }
+  document.body.appendChild(container);
+  setTimeout(() => container.remove(), 900);
+}
+
+// ── Checkpoint pulse overlay ──────────────────────
+function showCpPulse() {
+  const el = document.createElement('div');
+  el.className = 'cp-pulse-ring';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+}
+
+// ── Count-up animation ────────────────────────────
+function animateCountUp(el, target, duration = 800) {
+  const start = parseFloat(el.textContent) || 0;
+  const startTime = performance.now();
+  function update(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const current = start + (target - start) * ease;
+    el.textContent = Number.isInteger(target) ? Math.round(current) : current.toFixed(1);
+    if (t < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// ── Digit-flip timer ──────────────────────────────
+let _flipDigits = {};  // track per-digit current values
+
+function initFlipClock(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="flip-clock">
+      <div class="flip-digit" id="fd-h1"><div class="flip-card">0</div></div>
+      <div class="flip-digit" id="fd-h2"><div class="flip-card">0</div></div>
+      <div class="flip-sep">:</div>
+      <div class="flip-digit" id="fd-m1"><div class="flip-card">0</div></div>
+      <div class="flip-digit" id="fd-m2"><div class="flip-card">0</div></div>
+      <div class="flip-sep">:</div>
+      <div class="flip-digit" id="fd-s1"><div class="flip-card">0</div></div>
+      <div class="flip-digit" id="fd-s2"><div class="flip-card">0</div></div>
+    </div>`;
+}
+
+function updateFlipClock(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const digits = [
+    ['fd-h1', Math.floor(h/10)],
+    ['fd-h2', h%10],
+    ['fd-m1', Math.floor(m/10)],
+    ['fd-m2', m%10],
+    ['fd-s1', Math.floor(s/10)],
+    ['fd-s2', s%10],
+  ];
+  digits.forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const card = el.querySelector('.flip-card');
+    if (!card) return;
+    if (_flipDigits[id] !== val) {
+      _flipDigits[id] = val;
+      el.classList.remove('flipping');
+      void el.offsetWidth;
+      el.classList.add('flipping');
+      card.textContent = val;
+      setTimeout(() => el.classList.remove('flipping'), 260);
+    }
+  });
+}
+
+// ── Sparkline SVG ──────────────────────────────────
+function renderSparkline(container, values, color = '#4B9EFF') {
+  if (!values || values.length < 2) { container.innerHTML = ''; return; }
+  const W = 80, H = 22;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    return `${x},${y}`;
+  }).join(' ');
+  container.innerHTML = `<svg class="route-sparkline" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+  </svg>`;
+}
+
+// ── Gauge SVG ────────────────────────────────────
+function renderGauge(container, value, max, unit, color = '#4B9EFF') {
+  const pct = Math.min(value / max, 1);
+  const angle = pct * 180;
+  const r = 36, cx = 44, cy = 44;
+  const startAngle = -Math.PI;
+  const endAngle = startAngle + (angle / 180) * Math.PI;
+  const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+  const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
+  const largeArc = angle > 180 ? 1 : 0;
+  container.innerHTML = `<div class="gauge-wrap">
+    <svg class="gauge-svg" width="88" height="50" viewBox="0 0 88 50">
+      <path d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5" stroke-linecap="round"/>
+      <path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="white" font-size="13" font-weight="800" font-family="monospace">${value}</text>
+      <text x="${cx}" y="${cy + 8}" text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="8">${unit}</text>
+    </svg>
+  </div>`;
+}
+
+// ── Elevation profile SVG ─────────────────────────
+function renderElevationProfile(containerId, svgId, altitudes, distances) {
+  const wrap = document.getElementById(containerId);
+  const svg = document.getElementById(svgId);
+  if (!wrap || !svg || !altitudes?.length) return;
+
+  wrap.style.display = 'block';
+  const W = 300, H = 80;
+  const minA = Math.min(...altitudes), maxA = Math.max(...altitudes);
+  const range = maxA - minA || 1;
+  const maxD = distances ? Math.max(...distances) : altitudes.length - 1;
+
+  const pts = altitudes.map((a, i) => {
+    const x = ((distances ? distances[i] : i) / maxD) * W;
+    const y = H - ((a - minA) / range) * (H - 10) - 5;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const pathD = 'M ' + pts.join(' L ');
+  const fillD = pathD + ` L ${W},${H} L 0,${H} Z`;
+  const pathLen = altitudes.length * (W / altitudes.length) * 1.2;
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#4B9EFF" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#4B9EFF" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    <path d="${fillD}" fill="url(#elev-grad)" class="elev-fill"/>
+    <path d="${pathD}" class="elev-path" stroke-dasharray="${pathLen}" stroke-dashoffset="${pathLen}"/>
+    <text x="2" y="12" class="elev-label">${Math.round(maxA)}m</text>
+    <text x="2" y="${H - 2}" class="elev-label">${Math.round(minA)}m</text>
+  `;
+
+  const path = svg.querySelector('.elev-path');
+  if (path) {
+    path.style.animation = 'none';
+    void path.offsetWidth;
+    path.style.animation = '';
+  }
+}
+
+// ── Ghost timer update ────────────────────────────
+function updateGhostBar(elapsedMs) {
+  const bar = document.getElementById('ghost-bar');
+  const deltaEl = document.getElementById('ghost-delta');
+  if (!bar || !deltaEl || ghostPbMs <= 0) { if(bar) bar.style.display='none'; return; }
+  bar.style.display = 'flex';
+  const pbTimeEl = document.getElementById('ghost-pb-time');
+  if (pbTimeEl) pbTimeEl.textContent = fmtTime(ghostPbMs);
+  const delta = elapsedMs - ghostPbMs;
+  const sign = delta > 0 ? '+' : '';
+  deltaEl.textContent = sign + fmtTime(Math.abs(delta));
+  deltaEl.className = 'ghost-delta ' + (delta > 0 ? 'behind' : 'ahead');
+}
+
+// ── Tablet sidebar update ─────────────────────────
+function updateSidebar() {
+  if (window.innerWidth < 768) return;
+  const stats = computeAggregateStats('all');
+  const ridesEl = document.getElementById('sb-rides');
+  const kmEl = document.getElementById('sb-km');
+  const routEl = document.getElementById('sb-routes');
+  if (ridesEl) animateCountUp(ridesEl, stats.totalRides);
+  if (kmEl) animateCountUp(kmEl, Math.round(stats.totalKm));
+  if (routEl) animateCountUp(routEl, routes.length);
+
+  ['home','stats','add','strava'].forEach(name => {
+    const el = document.getElementById(`sb-nav-${name}`);
+    if (el) el.classList.toggle('active', curScreen === name || (name === 'home' && (curScreen === 'splash' || curScreen === 'home')));
+  });
+
+  const list = document.getElementById('sidebar-routes-list');
+  if (!list) return;
+  list.innerHTML = routes.map((r,i) => `
+    <div class="sidebar-route-item ${viewIdx === i ? 'active' : ''}" onclick="viewIdx=${i};navTo('detail')">
+      <div class="sidebar-route-dot" style="background:${['#4B9EFF','#FF6B6B','#4CAF50','#FFD700','#DDA0DD','#4ECDC4'][i%6]}"></div>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.name)}</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${(r.totalDist||0).toFixed(0)}km</span>
+    </div>
+  `).join('');
+}
+
+// ── Card flip ─────────────────────────────────────
+function toggleCardFlip(idx) {
+  const card = document.getElementById(`route-card-${idx}`);
+  if (!card) return;
+  card.classList.toggle('flipped');
 }
 
 // ════════════════════════════════════════════════
@@ -1541,6 +1905,7 @@ function renderStravaActivities(activities) {
     const alreadyImported = imported.has(String(a.id));
     const date = new Date(a.date).toLocaleDateString('cs-CZ', { day:'2-digit', month:'2-digit', year:'2-digit' });
     const dur  = fmtTime(a.durationMs);
+    const actJson = JSON.stringify(a).replace(/"/g,'&quot;');
     return `
       <div class="strava-item ${alreadyImported ? 'imported' : ''}" id="sa-${a.id}">
         <div class="strava-item-left">
@@ -1552,11 +1917,12 @@ function renderStravaActivities(activities) {
             <span>⛰ +${a.elevM} m</span>
           </div>
         </div>
-        <div class="strava-item-right">
+        <div class="strava-item-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
           ${alreadyImported
             ? '<span class="strava-badge-done">✓ Importováno</span>'
-            : `<button class="btn btn-blue btn-sm" onclick="showImportModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">Importovat</button>`
+            : `<button class="btn btn-blue btn-sm" onclick="showImportModal(${actJson})">Importovat</button>`
           }
+          <button class="btn btn-glass btn-sm" onclick="openStravaRouteCreator(${actJson})">+ Nová trasa</button>
         </div>
       </div>`;
   }).join('');
@@ -1620,8 +1986,332 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ════════════════════════════════════════════════
+//  STRAVA → NEW ROUTE CREATOR
+// ════════════════════════════════════════════════
+
+async function openStravaRouteCreator(activity) {
+  stravaCreatorActivity = activity;
+  navTo('strava-creator');
+
+  // Prefill form
+  document.getElementById('src-name').value = activity.name || '';
+  document.getElementById('src-dist').value = activity.distKm || '';
+  document.getElementById('src-elev').value = activity.elevM || '';
+  document.getElementById('src-desc').value = '';
+
+  // Stats preview
+  const statsEl = document.getElementById('src-stats');
+  if (statsEl) {
+    statsEl.innerHTML = [
+      { val: activity.distKm + ' km', lbl: 'Vzdálenost' },
+      { val: fmtTime(activity.durationMs), lbl: 'Čas' },
+      { val: '+' + activity.elevM + ' m', lbl: 'Převýšení' },
+      { val: (activity.avgSpeedKmh || '?') + ' km/h', lbl: 'Avg. rychlost' },
+    ].map(s => `<div class="sds-item"><div class="sds-val">${s.val}</div><div class="sds-lbl">${s.lbl}</div></div>`).join('');
+  }
+
+  // Wallpaper picker
+  const wallPick = document.getElementById('src-wall-pick');
+  if (wallPick) {
+    wallPick.innerHTML = WALLPAPERS.map(w => `
+      <div onclick="selectSrcWall('${w.id}')" id="src-wall-${w.id}"
+        style="width:52px;height:36px;border-radius:8px;background-image:url(${w.file});background-size:cover;cursor:pointer;border:2px solid transparent;transition:border-color 0.2s"
+        title="${w.label}"></div>`).join('');
+    selectSrcWall('wall1');
+  }
+
+  // Fetch full activity detail (polyline + perf data)
+  if (STRAVA_WORKER_URL && !STRAVA_WORKER_URL.includes('YOUR_SUBDOMAIN')) {
+    try {
+      const res = await fetch(`${STRAVA_WORKER_URL}/api/activity/${activity.id}`);
+      const detail = await res.json();
+      stravaCreatorActivity = { ...activity, ...detail };
+
+      // Performance badges
+      const perfEl = document.getElementById('src-perf-badges');
+      if (perfEl) {
+        const badges = [];
+        if (detail.avgWatts)    badges.push({ ico:'⚡', val: detail.avgWatts + 'W', lbl:'Avg. výkon' });
+        if (detail.avgHr)       badges.push({ ico:'❤️', val: detail.avgHr, lbl:'Avg. TF' });
+        if (detail.avgCadence)  badges.push({ ico:'🔄', val: detail.avgCadence + ' rpm', lbl:'Kadence' });
+        if (detail.calories)    badges.push({ ico:'🔥', val: detail.calories + ' kcal', lbl:'Kalorie' });
+        if (detail.sufferScore) badges.push({ ico:'💪', val: detail.sufferScore, lbl:'Effort' });
+        perfEl.innerHTML = badges.map(b => `<span class="perf-badge">${b.ico} <strong>${b.val}</strong> <span style="color:var(--text2)">${b.lbl}</span></span>`).join('');
+      }
+
+      // Load Leaflet map with polyline
+      if (detail.polyline) {
+        loadStravaMap(detail.polyline);
+      }
+
+      // Fetch streams for elevation profile
+      const streamsRes = await fetch(`${STRAVA_WORKER_URL}/api/activity/${activity.id}/streams`);
+      const streamsData = await streamsRes.json();
+      if (streamsData.streams?.altitude) {
+        renderElevationProfile('src-elev-wrap', 'src-elev-svg', streamsData.streams.altitude, streamsData.streams.distance);
+      }
+    } catch(e) {
+      console.warn('Could not fetch activity detail:', e.message);
+    }
+  }
+}
+
+let _srcWall = 'wall1';
+function selectSrcWall(id) {
+  _srcWall = id;
+  document.querySelectorAll('[id^="src-wall-"]').forEach(el => {
+    el.style.borderColor = el.id === `src-wall-${id}` ? '#4B9EFF' : 'transparent';
+  });
+}
+
+function loadStravaMap(polyline) {
+  const mapEl = document.getElementById('strava-route-map');
+  if (!mapEl) return;
+  mapEl.style.display = 'block';
+
+  if (!window.L) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => renderLeafletMap(polyline, mapEl);
+    document.head.appendChild(script);
+  } else {
+    renderLeafletMap(polyline, mapEl);
+  }
+}
+
+function decodePolyline(encoded) {
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+let _leafletMap = null;
+function renderLeafletMap(polyline, container) {
+  if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; }
+  const coords = decodePolyline(polyline);
+  if (!coords.length) return;
+  _leafletMap = L.map(container, { zoomControl: true, scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 18
+  }).addTo(_leafletMap);
+  const poly = L.polyline(coords, { color: '#4B9EFF', weight: 3, opacity: 0.8 }).addTo(_leafletMap);
+  _leafletMap.fitBounds(poly.getBounds(), { padding: [10, 10] });
+  L.circleMarker(coords[0], { radius: 6, color: '#4CAF50', fillColor: '#4CAF50', fillOpacity: 1 }).addTo(_leafletMap);
+  L.circleMarker(coords[coords.length-1], { radius: 6, color: '#FF5566', fillColor: '#FF5566', fillOpacity: 1 }).addTo(_leafletMap);
+}
+
+function confirmCreateRouteFromStrava() {
+  if (!stravaCreatorActivity) return;
+  const name = document.getElementById('src-name').value.trim();
+  if (!name) { toast('❌ Zadej název trasy'); return; }
+  const dist = parseFloat(document.getElementById('src-dist').value) || stravaCreatorActivity.distKm;
+  const elev = parseInt(document.getElementById('src-elev').value) || stravaCreatorActivity.elevM;
+  const desc = document.getElementById('src-desc').value.trim();
+
+  const newRoute = {
+    name,
+    totalDist: dist,
+    totalElev: elev,
+    totalDesc: 0,
+    description: desc,
+    wallpaper: _srcWall,
+    checkpoints: [],
+    type: 'strava',
+    elevPoints: [],
+    records: [{
+      date:        stravaCreatorActivity.date,
+      totalMs:     stravaCreatorActivity.durationMs,
+      stravaId:    stravaCreatorActivity.id,
+      stravaName:  stravaCreatorActivity.name,
+      distKm:      dist,
+      elevM:       elev,
+      avgWatts:    stravaCreatorActivity.avgWatts || null,
+      avgHr:       stravaCreatorActivity.avgHr || null,
+      avgCadence:  stravaCreatorActivity.avgCadence || null,
+      calories:    stravaCreatorActivity.calories || null,
+      checkpoints: [],
+    }],
+    polyline: stravaCreatorActivity.polyline || null,
+  };
+
+  routes.unshift(newRoute);
+  saveRoutes();
+  viewIdx = 0;
+  toast('✅ Trasa vytvořena!');
+  starBurst(window.innerWidth/2, window.innerHeight/3);
+  showAchievement('🗺️', `Trasa "${name}" přidána!`);
+  navTo('detail', false);
+}
+
+// ════════════════════════════════════════════════
+//  COMPARE RIDES
+// ════════════════════════════════════════════════
+
+function showCompareRides() {
+  const r = routes[viewIdx];
+  if (!r || !r.records || r.records.length < 2) { toast('Potřebuješ alespoň 2 záznamy'); return; }
+
+  const a = r.records[0], b = r.records[1];
+  const dateA = new Date(a.date).toLocaleDateString('cs-CZ', {day:'2-digit',month:'2-digit',year:'2-digit'});
+  const dateB = new Date(b.date).toLocaleDateString('cs-CZ', {day:'2-digit',month:'2-digit',year:'2-digit'});
+
+  let rows = `<tr>
+    <th>Parametr</th>
+    <th>${dateA}</th>
+    <th>${dateB}</th>
+  </tr>
+  <tr>
+    <td style="color:var(--text2)">Celkový čas</td>
+    <td class="compare-better">${fmtTime(a.totalMs)}</td>
+    <td class="${b.totalMs > a.totalMs ? 'compare-worse' : ''}">${fmtTime(b.totalMs)}</td>
+  </tr>`;
+
+  const cpsA = a.checkpoints || [], cpsB = b.checkpoints || [];
+  const maxCps = Math.max(cpsA.length, cpsB.length);
+  for (let i = 0; i < maxCps; i++) {
+    const cpA = cpsA[i], cpB = cpsB[i];
+    const tA = cpA?.splitMs, tB = cpB?.splitMs;
+    const name = cpA?.name || cpB?.name || `CP ${i+1}`;
+    const betterA = tA != null && tB != null && tA <= tB;
+    rows += `<tr>
+      <td style="color:var(--text2);font-size:11px">${name}</td>
+      <td class="${tA != null && betterA ? 'compare-better' : ''}">${tA != null ? fmtTime(tA) : '—'}</td>
+      <td class="${tB != null && !betterA ? 'compare-better' : ''}">${tB != null ? fmtTime(tB) : '—'}</td>
+    </tr>`;
+  }
+
+  if (a.avgWatts || b.avgWatts) {
+    rows += `<tr><td style="color:var(--text2)">Avg. výkon</td><td>${a.avgWatts ? a.avgWatts+'W' : '—'}</td><td>${b.avgWatts ? b.avgWatts+'W' : '—'}</td></tr>`;
+  }
+  if (a.avgHr || b.avgHr) {
+    rows += `<tr><td style="color:var(--text2)">Avg. TF</td><td>${a.avgHr || '—'}</td><td>${b.avgHr || '—'}</td></tr>`;
+  }
+
+  const delta = b.totalMs - a.totalMs;
+  rows += `<tr style="border-top:1px solid rgba(255,255,255,0.1)">
+    <td style="color:var(--text2)">Rozdíl</td>
+    <td colspan="2" style="color:var(--text2);font-size:11px">
+      Jízda 2 je o <strong style="color:${delta>0?'var(--red)':'var(--green)'}">${fmtTime(Math.abs(delta))}</strong> ${delta>0?'pomalejší':'rychlejší'}
+    </td>
+  </tr>`;
+
+  document.getElementById('compare-content').innerHTML = `<table class="compare-table">${rows}</table>`;
+  document.getElementById('modal-compare').classList.add('open');
+}
+
+// ════════════════════════════════════════════════
+//  GOALS
+// ════════════════════════════════════════════════
+
+function saveGoal() {
+  const type = document.getElementById('goal-type').value;
+  const target = parseFloat(document.getElementById('goal-target').value);
+  if (!target || target <= 0) { toast('❌ Zadej cílovou hodnotu'); return; }
+  goals = goals.filter(g => g.type !== type);
+  goals.push({ type, target, created: Date.now() });
+  localStorage.setItem('vt_goals', JSON.stringify(goals));
+  document.getElementById('add-goal-form').style.display = 'none';
+  renderGoals();
+  toast('✅ Cíl uložen');
+}
+
+function showAddGoalForm() {
+  const f = document.getElementById('add-goal-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderGoals() {
+  const el = document.getElementById('goals-content');
+  if (!el) return;
+  if (!goals.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2)">Žádné cíle. Přidej svůj první! 🎯</div>';
+    return;
+  }
+  const allRecs = routes.flatMap(r => r.records || []);
+  const now = new Date();
+
+  el.innerHTML = goals.map(g => {
+    let current = 0, label = '', unit = '';
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1); weekStart.setHours(0,0,0,0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart  = new Date(now.getFullYear(), 0, 1);
+
+    if (g.type === 'weekly_km') {
+      current = allRecs.filter(r => new Date(r.date) >= weekStart).reduce((s,r) => s + (r.distKm || 0), 0);
+      label = 'Týdenní km'; unit = 'km';
+    } else if (g.type === 'monthly_km') {
+      current = allRecs.filter(r => new Date(r.date) >= monthStart).reduce((s,r) => s + (r.distKm || 0), 0);
+      label = 'Měsíční km'; unit = 'km';
+    } else if (g.type === 'yearly_km') {
+      current = allRecs.filter(r => new Date(r.date) >= yearStart).reduce((s,r) => s + (r.distKm || 0), 0);
+      label = 'Roční km'; unit = 'km';
+    } else if (g.type === 'yearly_rides') {
+      current = allRecs.filter(r => new Date(r.date) >= yearStart).length;
+      label = 'Roční jízdy'; unit = 'jízd';
+    }
+    current = Math.round(current * 10) / 10;
+    const pct = Math.min((current / g.target) * 100, 100).toFixed(1);
+    const done = current >= g.target;
+
+    return `<div class="goal-card">
+      <div class="goal-header">
+        <div class="goal-title">${done ? '✅' : '🎯'} ${label}</div>
+        <button onclick="deleteGoal('${g.type}')" style="background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer">✕</button>
+      </div>
+      <div class="goal-progress-bg">
+        <div class="goal-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="goal-stats">
+        <span>${current} ${unit} z ${g.target} ${unit}</span>
+        <span>${pct}%</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Animate progress bars after render
+  setTimeout(() => {
+    document.querySelectorAll('.goal-progress-fill').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0%';
+      setTimeout(() => bar.style.width = w, 50);
+    });
+  }, 0);
+}
+
+function deleteGoal(type) {
+  goals = goals.filter(g => g.type !== type);
+  localStorage.setItem('vt_goals', JSON.stringify(goals));
+  renderGoals();
+}
+
 // ── INIT ──────────────────────────────────────────
 curScreen = 'splash';
 renderSplash();
 updateBackground();
 checkStravaOnStart();
+
+// Ripple on all buttons (global delegation)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn');
+  if (btn) addRipple({ currentTarget: btn, clientX: e.clientX, clientY: e.clientY });
+});
+
+// Update sidebar on resize
+window.addEventListener('resize', () => updateSidebar());
+
+// Initial sidebar update
+updateSidebar();
