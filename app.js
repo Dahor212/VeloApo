@@ -14,6 +14,7 @@ const WALLPAPERS = [
   { id: 'wall8', file: 'img/wall8-alpine-snow.webp',     label: 'Alpské velikány' }
 ];
 const DEFAULT_WALL = 'wall1';
+const STRAVA_WORKER_URL = 'https://veloapo-strava.YOUR_SUBDOMAIN.workers.dev';
 function wallpaperUrl(id) {
   return (WALLPAPERS.find(w => w.id === id) || WALLPAPERS[0]).file;
 }
@@ -29,6 +30,7 @@ let selectedWallpaper = DEFAULT_WALL;
 let selectedWallpaperGPX = DEFAULT_WALL;
 let navStack = [];   // navigation history for goBack()
 let sortMode  = 'default'; // 'default' | 'name' | 'dist' | 'rides'
+let stravaConnected = false;
 
 // ── RIDE STATE ────────────────────────────────────
 let rs = {
@@ -73,6 +75,7 @@ function navTo(name, clearStack) {
   if (name === 'detail') renderDetail();
   if (name === 'add')    initAddScreen();
   if (name === 'stats')  renderStats();
+  if (name === 'strava') renderStravaScreen();
   showScreen(name);
 }
 
@@ -96,6 +99,7 @@ function goBack() {
   if (prev === 'detail') { renderDetail(); showScreen('detail'); }
   if (prev === 'stats')  { renderStats();  showScreen('stats'); }
   if (prev === 'add')    { initAddScreen(); showScreen('add'); }
+  if (prev === 'strava') { renderStravaScreen(); showScreen('strava'); }
 }
 
 function updateBackground() {

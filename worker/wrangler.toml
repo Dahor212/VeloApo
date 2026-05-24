@@ -1,0 +1,13 @@
+name = "veloapo-strava"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_YOUR_KV_PREVIEW_NAMESPACE_ID"
+
+# Secrets (set via: wrangler secret put STRAVA_CLIENT_ID)
+# STRAVA_CLIENT_ID
+# STRAVA_CLIENT_SECRET
+# PWA_ORIGIN (e.g. https://dahor212.github.io)
