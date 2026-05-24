@@ -1,5 +1,5 @@
 // VeloApo – Cloudflare Worker for Strava OAuth + API proxy
-// Deploy: cd worker && npx wrangler deploy
+// Deploy: cd worker && npx wrangler deploy  v1.1
 
 const STRAVA_AUTH    = 'https://www.strava.com/oauth/authorize';
 const STRAVA_TOKEN   = 'https://www.strava.com/oauth/token';
