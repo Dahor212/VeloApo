@@ -1,0 +1,136 @@
+name: 🟠 Deploy Strava Worker
+
+on:
+  workflow_dispatch:          # spustí se ručně
+  push:
+    paths: ['worker/**']     # nebo automaticky při změně worker kódu
+    branches:
+      - claude/github-folder-review-kacbl
+      - main
+
+jobs:
+  deploy:
+    name: Cloudflare Worker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # potřebujeme zapsat app.js
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── 2. Node.js ─────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler
+        run: cd worker && npm install
+
+      # ── 3. KV namespace ────────────────────────────────────────────────
+      - name: Create or get KV namespace
+        id: kv
+        env:
+          CF_TOKEN:   ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          # List existing namespaces
+          LIST=$(curl -sf "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/storage/kv/namespaces?per_page=100" \
+            -H "Authorization: Bearer $CF_TOKEN")
+
+          # Check if veloapo-strava-kv already exists
+          KV_ID=$(echo "$LIST" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          match = [n['id'] for n in d.get('result',[]) if n['title']=='veloapo-strava-kv']
+          print(match[0] if match else '')
+          " 2>/dev/null || echo "")
+
+          # Create namespace if needed
+          if [ -z "$KV_ID" ]; then
+            CREATE=$(curl -sf -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/storage/kv/namespaces" \
+              -H "Authorization: Bearer $CF_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"title":"veloapo-strava-kv"}')
+            KV_ID=$(echo "$CREATE" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['id'])")
+            echo "✅ KV namespace created: $KV_ID"
+          else
+            echo "✅ KV namespace exists: $KV_ID"
+          fi
+
+          echo "KV_ID=$KV_ID" >> "$GITHUB_OUTPUT"
+
+      # ── 4. Patch wrangler.toml with real KV id ──────────────────────────
+      - name: Patch wrangler.toml
+        run: |
+          KV_ID="${{ steps.kv.outputs.KV_ID }}"
+          sed -i "s/REPLACE_WITH_YOUR_KV_NAMESPACE_ID/$KV_ID/g"         worker/wrangler.toml
+          sed -i "s/REPLACE_WITH_YOUR_KV_PREVIEW_NAMESPACE_ID/$KV_ID/g" worker/wrangler.toml
+          echo "wrangler.toml after patch:"
+          cat worker/wrangler.toml
+
+      # ── 5. Deploy Worker ───────────────────────────────────────────────
+      - name: Deploy Worker
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          cd worker
+          DEPLOY_OUT=$(npx wrangler deploy 2>&1)
+          echo "$DEPLOY_OUT"
+
+          # Extract deployed URL from wrangler output
+          WORKER_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://veloapo-strava\.[^ ]+' | head -1 | tr -d '\r')
+          if [ -z "$WORKER_URL" ]; then
+            WORKER_URL="https://veloapo-strava.${{ secrets.CF_ACCOUNT_ID }}.workers.dev"
+          fi
+          echo "WORKER_URL=$WORKER_URL" >> "$GITHUB_OUTPUT"
+          echo "🚀 Worker URL: $WORKER_URL"
+
+      # ── 6. Set Strava secrets on the Worker ────────────────────────────
+      - name: Set Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          cd worker
+          echo "${{ secrets.STRAVA_CLIENT_ID }}"     | npx wrangler secret put STRAVA_CLIENT_ID
+          echo "${{ secrets.STRAVA_CLIENT_SECRET }}"  | npx wrangler secret put STRAVA_CLIENT_SECRET
+          echo "https://dahor212.github.io"            | npx wrangler secret put PWA_ORIGIN
+          echo "✅ Secrets set"
+
+      # ── 7. Update app.js with the real Worker URL ──────────────────────
+      - name: Update STRAVA_WORKER_URL in app.js
+        run: |
+          WORKER_URL="${{ steps.deploy.outputs.WORKER_URL }}"
+          echo "Updating app.js → $WORKER_URL"
+          # Replace the placeholder (or any previous workers.dev URL)
+          sed -i "s|https://veloapo-strava\.[^']*|$WORKER_URL|g" app.js
+          grep "STRAVA_WORKER_URL" app.js
+
+      # ── 8. Commit updated app.js ───────────────────────────────────────
+      - name: Commit app.js
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then
+            echo "app.js already up to date"
+          else
+            git commit -m "chore: update Strava Worker URL in app.js [skip ci]"
+            git push
+            echo "✅ app.js committed and pushed"
+          fi
+
+      # ── 9. Summary ─────────────────────────────────────────────────────
+      - name: Summary
+        run: |
+          echo "## ✅ Strava Worker nasazen!" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Worker URL:** ${{ steps.deploy.outputs.WORKER_URL }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Strava app nastavení" >> "$GITHUB_STEP_SUMMARY"
+          echo "Jdi na [developers.strava.com](https://developers.strava.com) → My Apps → tvá aplikace:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Authorization Callback Domain:** \`veloapo-strava.${{ secrets.CF_ACCOUNT_ID }}.workers.dev\`" >> "$GITHUB_STEP_SUMMARY"
