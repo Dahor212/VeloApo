@@ -14,7 +14,7 @@ const WALLPAPERS = [
   { id: 'wall8', file: 'img/wall8-alpine-snow.webp',     label: 'Alpské velikány' }
 ];
 const DEFAULT_WALL = 'wall1';
-const STRAVA_WORKER_URL = 'https://veloapo-strava.YOUR_SUBDOMAIN.workers.dev';
+const STRAVA_WORKER_URL = 'https://veloapo-strava.dahor212.workers.dev';
 function wallpaperUrl(id) {
   return (WALLPAPERS.find(w => w.id === id) || WALLPAPERS[0]).file;
 }
