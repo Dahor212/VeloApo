@@ -1456,6 +1456,194 @@ body {
     gap: 12px;
   }
 }
+
+/* ══════════════════════════════════════════════════
+   FEATURE A: Ghost racer dots on progress bar
+══════════════════════════════════════════════════ */
+#prog-wrap { position: relative; }
+.ghost-dot {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,0.6);
+  transition: left 0.5s linear;
+  pointer-events: none;
+  z-index: 3;
+}
+.my-dot {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #4B9EFF;
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px rgba(75,158,255,0.8);
+  transition: left 0.3s linear;
+  pointer-events: none;
+  z-index: 4;
+}
+.prog-label-ghost {
+  position: absolute; top: -18px; font-size: 9px;
+  color: rgba(255,255,255,0.6); white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════
+   FEATURE B: Split reveal overlay
+══════════════════════════════════════════════════ */
+.split-overlay {
+  position: fixed; inset: 0; z-index: 9990;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.2s;
+}
+.split-overlay.show { opacity: 1; }
+.split-overlay-bg {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+}
+.split-overlay-content {
+  position: relative; z-index: 1; text-align: center;
+  animation: splitReveal 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes splitReveal {
+  from { transform: scale(0.5) translateY(40px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.split-overlay-cp { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+.split-overlay-time { font-size: 72px; font-weight: 900; font-family: var(--mono); line-height: 1; margin-bottom: 12px; }
+.split-overlay-delta { font-size: 24px; font-weight: 700; font-family: var(--mono); padding: 6px 20px; border-radius: 20px; display: inline-block; }
+.split-overlay-delta.ahead  { background: rgba(76,175,80,0.25); color: #4CAF50; border: 1px solid #4CAF50; }
+.split-overlay-delta.behind { background: rgba(255,85,102,0.25); color: #FF5566; border: 1px solid #FF5566; }
+.split-overlay-rank { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 10px; }
+
+/* ══════════════════════════════════════════════════
+   FEATURE C: Pacing zone bar
+══════════════════════════════════════════════════ */
+.pacing-zone-wrap {
+  padding: 0 16px; margin: 2px 0 6px;
+}
+.pacing-zone-track {
+  height: 6px; border-radius: 3px; position: relative;
+  background: linear-gradient(90deg, #FF5566 0%, #FF5566 30%, #FFD700 45%, #FFD700 55%, #4CAF50 70%, #4CAF50 100%);
+  overflow: visible;
+}
+.pacing-zone-cursor {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: white; border: 2px solid rgba(0,0,0,0.3);
+  box-shadow: 0 0 8px rgba(255,255,255,0.8);
+  transition: left 0.8s cubic-bezier(0.4,0,0.2,1);
+}
+.pacing-zone-labels {
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: var(--text3); margin-top: 3px;
+  font-family: var(--mono);
+}
+
+/* ══════════════════════════════════════════════════
+   FEATURE D: Next CP countdown bar
+══════════════════════════════════════════════════ */
+.next-cp-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; margin: 0;
+  background: rgba(75,158,255,0.08);
+  border-top: 1px solid rgba(75,158,255,0.15);
+  border-bottom: 1px solid rgba(75,158,255,0.15);
+}
+.next-cp-name { font-size: 12px; font-weight: 700; color: #4B9EFF; }
+.next-cp-dist { font-size: 12px; font-family: var(--mono); color: var(--text2); }
+.next-cp-eta  { font-size: 12px; font-family: var(--mono); font-weight: 700; }
+.next-cp-eta.fast   { color: #4CAF50; }
+.next-cp-eta.normal { color: var(--text); }
+.next-cp-eta.slow   { color: #FF5566; }
+
+/* ══════════════════════════════════════════════════
+   FEATURE E: Motivational messages
+══════════════════════════════════════════════════ */
+.moti-msg {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 9985; pointer-events: none;
+  font-size: 22px; font-weight: 900;
+  text-align: center; white-space: nowrap;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+  opacity: 0;
+  animation: motiPop 2.5s ease-out forwards;
+}
+@keyframes motiPop {
+  0%   { opacity: 0; transform: translate(-50%, -30%); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  30%  { transform: translate(-50%, -50%) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%); }
+}
+
+/* ══════════════════════════════════════════════════
+   FEATURE G: Landscape race mode
+══════════════════════════════════════════════════ */
+@media (orientation: landscape) and (max-height: 500px) {
+  #screen-ride .ride-hdr { padding: 4px 12px; min-height: 36px; }
+  #screen-ride .ride-name { font-size: 13px; }
+
+  #ride-race-layout {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    height: calc(100vh - 44px);
+    overflow: hidden;
+  }
+
+  .race-left {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 8px 12px; overflow: hidden;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .race-right {
+    display: flex; flex-direction: column;
+    overflow-y: auto; padding: 8px;
+  }
+
+  /* Landscape: hide non-essential elements */
+  #pacing-zone-wrap, #next-cp-bar { display: none !important; }
+  #ride-elev { display: none; }
+
+  /* Make timer bigger in landscape */
+  #screen-ride .timer-main { font-size: 56px; }
+
+  /* TV board takes full right column */
+  #tv-board { margin: 0; flex: 1; }
+}
+
+/* ══════════════════════════════════════════════════
+   FEATURE H: Background color tint
+══════════════════════════════════════════════════ */
+#screen-ride.tint-ahead  { --ride-tint: rgba(76,175,80,0.06); }
+#screen-ride.tint-behind { --ride-tint: rgba(255,85,102,0.06); }
+#screen-ride::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: var(--ride-tint, transparent);
+  transition: background 2s ease; z-index: 0;
+}
+
+/* ══════════════════════════════════════════════════
+   FEATURE I: F1-style split animation
+══════════════════════════════════════════════════ */
+.f1-split-fly {
+  position: fixed; z-index: 9980; pointer-events: none;
+  font-family: var(--mono); font-weight: 800; font-size: 18px;
+  padding: 4px 12px; border-radius: 8px;
+  animation: f1SplitFly 1.8s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+.f1-split-fly.ahead  { background: rgba(76,175,80,0.9);  color: #fff; }
+.f1-split-fly.behind { background: rgba(255,85,102,0.9); color: #fff; }
+@keyframes f1SplitFly {
+  0%   { bottom: 20%; opacity: 0; transform: translateX(-50%) scale(0.8) translateY(20px); }
+  15%  { opacity: 1;  transform: translateX(-50%) scale(1.05) translateY(0); }
+  60%  { opacity: 1;  transform: translateX(-50%) scale(1) translateY(0); }
+  100% { opacity: 0;  transform: translateX(-50%) scale(0.9) translateY(-30px); }
+}
 </style>
 </head>
 <body>
@@ -1802,95 +1990,139 @@ body {
       <div class="ride-name" id="ride-name">—</div>
       <div class="ride-sub" id="ride-dist-lbl">0 km</div>
     </div>
-    <div class="ride-pill">
-      <div class="status-dot" id="sdot"></div>
-      <span id="stxt">READY</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="race-mode-btn" onclick="toggleRaceMode()" style="font-size:12px;padding:4px 8px;opacity:0.5;" class="btn btn-glass btn-sm">🏎️</button>
+      <div class="ride-pill">
+        <div class="status-dot" id="sdot"></div>
+        <span id="stxt">READY</span>
+      </div>
     </div>
   </div>
 
-  <div class="scroll">
-    <div class="timer-block">
-      <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
-      <div id="flip-clock-wrap" style="margin-top:6px;display:none;"></div>
-    </div>
+  <div class="scroll" id="ride-race-layout">
+    <div class="race-left">
+      <div class="timer-block" style="width:100%">
+        <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
+        <div id="flip-clock-wrap" style="margin-top:6px;display:none;"></div>
+      </div>
 
-    <div class="ghost-bar" id="ghost-bar" style="display:none;margin:0 16px;">
-      <span>👻 PB</span>
-      <span id="ghost-pb-time" style="font-family:var(--mono);color:var(--text2);font-size:12px">—</span>
-      <span style="flex:1"></span>
-      <span class="ghost-delta" id="ghost-delta">—</span>
-    </div>
+      <!-- Feature C: Pacing zone indicator -->
+      <div class="pacing-zone-wrap" id="pacing-zone-wrap" style="display:none;width:100%">
+        <div class="pacing-zone-track">
+          <div class="pacing-zone-cursor" id="pacing-cursor" style="left:50%"></div>
+        </div>
+        <div class="pacing-zone-labels">
+          <span>Pomalý</span>
+          <span id="pacing-label">— min/km</span>
+          <span>Rychlý</span>
+        </div>
+      </div>
 
-    <!-- TV BOARD -->
-    <div class="tv-board" id="tv-board">
-      <div class="tv-hdr">
-        <div class="tv-hdr-l"><span class="tv-live-dot"></span>LIVE žebříček</div>
-        <div class="tv-hdr-r" id="tv-cp-info"><span class="tv-hdr-cp">START</span></div>
+      <div class="ghost-bar" id="ghost-bar" style="display:none;margin:0 16px;">
+        <span>👻 PB</span>
+        <span id="ghost-pb-time" style="font-family:var(--mono);color:var(--text2);font-size:12px">—</span>
+        <span style="flex:1"></span>
+        <span class="ghost-delta" id="ghost-delta">—</span>
       </div>
-      <div class="tv-rows" id="tv-rows"></div>
-    </div>
 
-    <div class="stats-grid">
-      <div class="scard">
-        <div class="scard-lbl">⏱ Čas</div>
-        <div class="scard-val" id="s-time">0:00</div>
-        <div class="scard-unit">mm:ss</div>
+      <div class="stats-grid" style="width:100%">
+        <div class="scard">
+          <div class="scard-lbl">⏱ Čas</div>
+          <div class="scard-val" id="s-time">0:00</div>
+          <div class="scard-unit">mm:ss</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">📍 Pozice</div>
+          <div class="scard-val" id="s-pos" style="color:var(--gold);">#—</div>
+          <div class="scard-unit" id="s-pos-of">z 0</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">🎯 Průběh</div>
+          <div class="scard-val" id="s-pct">0%</div>
+          <div class="scard-unit" id="s-km">0 / 0 km</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">⚡ Tempo</div>
+          <div class="scard-val" id="s-pace">—</div>
+          <div class="scard-unit">min/km</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">⏳ Do cíle</div>
+          <div class="scard-val" id="s-eta">—</div>
+          <div class="scard-unit">odhadem</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">🏆 vs PB</div>
+          <div class="scard-val" id="s-pb" style="font-size:16px;">—</div>
+          <div class="scard-unit">rozdíl</div>
+        </div>
       </div>
-      <div class="scard">
-        <div class="scard-lbl">📍 Pozice</div>
-        <div class="scard-val" id="s-pos" style="color:var(--gold);">#—</div>
-        <div class="scard-unit" id="s-pos-of">z 0</div>
-      </div>
-      <div class="scard">
-        <div class="scard-lbl">🎯 Průběh</div>
-        <div class="scard-val" id="s-pct">0%</div>
-        <div class="scard-unit" id="s-km">0 / 0 km</div>
-      </div>
-      <div class="scard">
-        <div class="scard-lbl">⚡ Tempo</div>
-        <div class="scard-val" id="s-pace">—</div>
-        <div class="scard-unit">min/km</div>
-      </div>
-      <div class="scard">
-        <div class="scard-lbl">⏳ Do cíle</div>
-        <div class="scard-val" id="s-eta">—</div>
-        <div class="scard-unit">odhadem</div>
-      </div>
-      <div class="scard">
-        <div class="scard-lbl">🏆 vs PB</div>
-        <div class="scard-val" id="s-pb" style="font-size:16px;">—</div>
-        <div class="scard-unit">rozdíl</div>
-      </div>
-    </div>
 
-    <div class="prog-section">
-      <div class="prog-labels">
-        <span>Start</span>
-        <span id="prog-lbl">0 / 0 km</span>
-        <span>Cíl 🏁</span>
+      <div class="prog-section" style="width:100%">
+        <div class="prog-labels">
+          <span>Start</span>
+          <span id="prog-lbl">0 / 0 km</span>
+          <span>Cíl 🏁</span>
+        </div>
+        <!-- Feature A: Ghost racer on progress bar -->
+        <div class="prog-bar" id="prog-wrap" style="position:relative;">
+          <div class="prog-fill" id="prog-fill" style="width:0%"><div class="prog-dot"></div></div>
+          <div id="prog-markers"></div>
+          <div class="ghost-dot" id="ghost-dot" style="display:none;left:0%">
+            <div class="prog-label-ghost">👻</div>
+          </div>
+          <div class="my-dot" id="my-dot" style="display:none;left:0%"></div>
+        </div>
       </div>
-      <div class="prog-bar">
-        <div class="prog-fill" id="prog-fill" style="width:0%"><div class="prog-dot"></div></div>
-        <div id="prog-markers"></div>
+
+      <!-- Feature D: Next CP countdown bar -->
+      <div class="next-cp-bar" id="next-cp-bar" style="display:none;width:100%">
+        <div>
+          <div class="next-cp-name" id="next-cp-name">→ CP 1</div>
+          <div class="next-cp-dist" id="next-cp-dist">— km</div>
+        </div>
+        <div class="next-cp-eta" id="next-cp-eta">—</div>
       </div>
-    </div>
+    </div><!-- end .race-left -->
 
-    <div class="elev-ride">
-      <canvas id="ride-elev" height="90" style="width:100%;display:block;"></canvas>
-    </div>
+    <div class="race-right">
+      <!-- TV BOARD -->
+      <div class="tv-board" id="tv-board">
+        <div class="tv-hdr">
+          <div class="tv-hdr-l"><span class="tv-live-dot"></span>LIVE žebříček</div>
+          <div class="tv-hdr-r" id="tv-cp-info"><span class="tv-hdr-cp">START</span></div>
+        </div>
+        <div class="tv-rows" id="tv-rows"></div>
+      </div>
 
-    <div class="cps-section">
-      <div class="cps-title">Checkpointy</div>
-      <div id="ride-cps"></div>
-    </div>
+      <div class="elev-ride">
+        <canvas id="ride-elev" height="90" style="width:100%;display:block;"></canvas>
+      </div>
 
-    <div style="height: 10px;"></div>
-  </div>
+      <div class="cps-section">
+        <div class="cps-title">Checkpointy</div>
+        <div id="ride-cps"></div>
+      </div>
+
+      <div style="height: 10px;"></div>
+    </div><!-- end .race-right -->
+  </div><!-- end #ride-race-layout -->
 
   <div class="ride-ctrl">
     <button class="btn btn-red ctrl-side" onclick="confirmAbort()">■ Stop</button>
     <button class="btn btn-blue ctrl-main" id="btn-sp" onclick="toggleTimer()">▶ START</button>
     <button class="btn btn-glass ctrl-side" id="btn-rst" onclick="resetRide()" style="display:none;">↺ Reset</button>
+  </div>
+</div>
+
+<!-- Feature B: Split reveal overlay -->
+<div class="split-overlay" id="split-overlay">
+  <div class="split-overlay-bg"></div>
+  <div class="split-overlay-content">
+    <div class="split-overlay-cp" id="sov-cp">Checkpoint 1</div>
+    <div class="split-overlay-time" id="sov-time">0:00</div>
+    <div class="split-overlay-delta" id="sov-delta">—</div>
+    <div class="split-overlay-rank" id="sov-rank"></div>
   </div>
 </div>
 

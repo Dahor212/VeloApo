@@ -44,6 +44,13 @@ let rs = {
 };
 let rafId = null;
 
+// ── FEATURE E: Motivational messages state ────────
+let _motiLastState = null;
+let _motiLastPct = 0;
+
+// ── FEATURE G: Race mode state ────────────────────
+let _raceModeForced = false;
+
 // ════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════
@@ -601,6 +608,18 @@ function startRide() {
   initFlipClock('flip-clock-wrap');
   const fcWrap = document.getElementById('flip-clock-wrap');
   if (fcWrap) fcWrap.style.display = 'block';
+
+  // Feature E: reset motivational messages state
+  _motiLastState = null;
+  _motiLastPct = 0;
+
+  // Feature H: clear tints on ride start
+  const screenRide = document.getElementById('screen-ride');
+  if (screenRide) { screenRide.classList.remove('tint-ahead', 'tint-behind'); }
+
+  // Feature F: initialize elevation canvas
+  drawRideElevation();
+
   showScreen('ride');
 }
 
@@ -695,6 +714,135 @@ function updateRideUI() {
     rs._tvLastUpdate = rs.elapsed;
     renderTVBoard();
   }
+
+  // Feature A: Ghost racer dots on progress bar
+  const totalDist = r?.totalDist || 0;
+  const myDotEl = document.getElementById('my-dot');
+  const ghostDotEl = document.getElementById('ghost-dot');
+  if (myDotEl && ghostDotEl && totalDist > 0) {
+    const cpsDone = rs.cps.filter(c => c.hitTime != null).length;
+    const totalCps = rs.cps.length;
+    let myPct;
+    if (rs.finished) {
+      myPct = 100;
+    } else if (totalCps === 0) {
+      myPct = ghostPbMs > 0 ? Math.min((rs.elapsed / ghostPbMs) * 100, 99) : 0;
+    } else {
+      const basePct = (cpsDone / (totalCps + 1)) * 100;
+      const nextPct  = ((cpsDone + 1) / (totalCps + 1)) * 100;
+      const nextCpMs = (() => {
+        if (ghostPbMs <= 0) return ghostPbMs;
+        const fraction = (cpsDone + 1) / (totalCps + 1);
+        return fraction * ghostPbMs;
+      })();
+      const prevCpMs = (() => {
+        if (cpsDone === 0) return 0;
+        const fraction = cpsDone / (totalCps + 1);
+        return fraction * ghostPbMs;
+      })();
+      const segDuration = nextCpMs - prevCpMs;
+      const sinceLastCp = cpsDone > 0 ? rs.elapsed - (rs.cps[cpsDone-1]?.hitTime || 0) : rs.elapsed;
+      const segPct = segDuration > 0 ? Math.min(sinceLastCp / segDuration, 1) : 0;
+      myPct = Math.min(basePct + segPct * (nextPct - basePct), 99);
+    }
+    const ghostPct = ghostPbMs > 0 ? Math.min((rs.elapsed / ghostPbMs) * 100, 100) : 0;
+
+    myDotEl.style.display = 'block';
+    myDotEl.style.left = `calc(${myPct.toFixed(1)}% - 7px)`;
+
+    if (ghostPbMs > 0) {
+      ghostDotEl.style.display = 'block';
+      ghostDotEl.style.left = `calc(${ghostPct.toFixed(1)}% - 6px)`;
+    } else {
+      ghostDotEl.style.display = 'none';
+    }
+  }
+
+  // Feature C: Pacing zone indicator
+  const pacingWrap = document.getElementById('pacing-zone-wrap');
+  const pacingCursor = document.getElementById('pacing-cursor');
+  const pacingLabel = document.getElementById('pacing-label');
+  if (pacingWrap && rs.elapsed > 5000 && ghostPbMs > 0) {
+    pacingWrap.style.display = 'block';
+    const cpsDonePacing = rs.cps.filter(c => c.hitTime != null).length;
+    const totalCpsPacing = rs.cps.length;
+    const myProgressPacing = (() => {
+      if (totalCpsPacing === 0) return rs.elapsed / ghostPbMs;
+      const baseFrac = cpsDonePacing / (totalCpsPacing + 1);
+      return baseFrac + (rs.elapsed - (rs.cps[cpsDonePacing-1]?.hitTime || 0)) / ghostPbMs / (totalCpsPacing + 1);
+    })();
+    const paceRatio = myProgressPacing > 0 ? (rs.elapsed / ghostPbMs) / myProgressPacing : 1;
+    const zonePct = Math.max(0, Math.min(100, (1 - (paceRatio - 1) * 3.33) * 100));
+    if (pacingCursor) pacingCursor.style.left = `${zonePct.toFixed(1)}%`;
+
+    const totalDistPacing = r?.totalDist || 1;
+    const estKm = totalDistPacing * (cpsDonePacing / ((rs.cps.length || 1) + 1));
+    if (estKm > 0.5 && pacingLabel) {
+      const minPerKm = (rs.elapsed / 60000) / estKm;
+      const mPace = Math.floor(minPerKm); const sPace = Math.round((minPerKm - mPace) * 60);
+      pacingLabel.textContent = `${mPace}:${sPace.toString().padStart(2,'0')} min/km`;
+    }
+  }
+
+  // Feature D: Countdown to next CP
+  const nextCpBar = document.getElementById('next-cp-bar');
+  if (nextCpBar) {
+    const nextCp = rs.cps[rs.cpIdx];
+    if (nextCp && rs.running && !rs.finished) {
+      nextCpBar.style.display = 'flex';
+      document.getElementById('next-cp-name').textContent = `→ ${nextCp.name || `CP ${rs.cpIdx + 1}`}`;
+      const cpsDoneD = rs.cps.filter(c => c.hitTime != null).length;
+      const totalCpsD = rs.cps.length;
+      const totalDistD = r?.totalDist || 0;
+      const estKmDone = totalDistD * (cpsDoneD / (totalCpsD + 1));
+      const cpKm = nextCp.km || totalDistD * ((rs.cpIdx + 1) / (totalCpsD + 1));
+      const distToNext = Math.max(0, cpKm - estKmDone);
+      document.getElementById('next-cp-dist').textContent = `${distToNext.toFixed(2)} km`;
+
+      const etaEl = document.getElementById('next-cp-eta');
+      if (estKmDone > 0.5 && distToNext > 0) {
+        const paceSecPerKm = (rs.elapsed / 1000) / estKmDone;
+        const etaSec = Math.round(distToNext * paceSecPerKm);
+        const mEta = Math.floor(etaSec / 60); const sEta = etaSec % 60;
+        etaEl.textContent = `~${mEta}:${sEta.toString().padStart(2,'0')}`;
+        if (ghostPbMs > 0) {
+          const pbPaceSecPerKm = (ghostPbMs / 1000) / (totalDistD || 1);
+          const pbEtaSec = distToNext * pbPaceSecPerKm;
+          etaEl.className = 'next-cp-eta ' + (etaSec < pbEtaSec ? 'fast' : etaSec > pbEtaSec * 1.05 ? 'slow' : 'normal');
+        } else {
+          etaEl.className = 'next-cp-eta normal';
+        }
+      } else {
+        etaEl.textContent = '—';
+      }
+    } else {
+      nextCpBar.style.display = 'none';
+    }
+  }
+
+  // Feature F: elevation dot — throttled
+  if (!rs._elevLastDraw || rs.elapsed - rs._elevLastDraw > 2000) {
+    rs._elevLastDraw = rs.elapsed;
+    drawRideElevation();
+  }
+
+  // Feature H: Background tint
+  if (!rs._tintLast || rs.elapsed - rs._tintLast > 1000) {
+    rs._tintLast = rs.elapsed;
+    const screenEl = document.getElementById('screen-ride');
+    if (screenEl && ghostPbMs > 0 && rs.elapsed > 3000) {
+      const isAheadH = rs.elapsed < ghostPbMs * (_motiLastPct / 100 || 0.01);
+      screenEl.classList.toggle('tint-ahead', isAheadH);
+      screenEl.classList.toggle('tint-behind', !isAheadH);
+    }
+  }
+
+  // Feature E: Motivational messages check
+  const cpsDoneForMoti = rs.cps.filter(c => c.hitTime != null).length;
+  const pctForMoti = rs.cps.length > 0
+    ? (cpsDoneForMoti / (rs.cps.length + 1)) * 100
+    : (ghostPbMs > 0 ? Math.min((rs.elapsed / ghostPbMs) * 100, 99) : 0);
+  checkMotiMessages(rs.elapsed, cpsDoneForMoti, rs.cps.length, pctForMoti);
 }
 
 // ════════════════════════════════════════════════
@@ -893,6 +1041,32 @@ function hitCP(idx) {
   // Update progress marker to done
   const marker = document.querySelector(`#prog-markers .prog-cp-marker[data-km="${rs.cps[idx].km}"]`);
   if (marker) marker.classList.add('done');
+
+  // Feature B: Split reveal overlay
+  const cp = rs.cps[idx];
+  const pbSplitMs = (() => {
+    const recs = routes[viewIdx]?.records || [];
+    if (!recs.length) return 0;
+    const pbCps = recs[0].checkpoints || [];
+    return pbCps[idx]?.splitMs || 0;
+  })();
+  showSplitOverlay(cp.name || `CP ${idx + 1}`, cp.splitMs, pbSplitMs);
+
+  // Feature I: F1 split animation
+  const pbSplitMs2 = (() => {
+    const recs = routes[viewIdx]?.records || [];
+    if (!recs.length) return 0;
+    return (recs[0].checkpoints || [])[idx]?.splitMs || 0;
+  })();
+  showF1Split(cp.splitMs, pbSplitMs2, idx);
+
+  // Feature E: Split record motivational message
+  if (cp.splitMs && pbSplitMs > 0) {
+    if (cp.splitMs < pbSplitMs) {
+      setTimeout(() => showMotiMsg(`Split rekord na ${cp.name || 'CP'}! ⚡`, '#4CAF50'), 2300);
+    }
+  }
+
   renderRideCPs();
   renderTVBoard();
 }
@@ -908,6 +1082,9 @@ function finishRide() {
   document.getElementById('stxt').textContent = 'HOTOVO';
   document.getElementById('timer-main').classList.remove('running');
   document.getElementById('btn-rst').style.display = '';
+  // Feature H: clear tints on finish
+  const screenRideF = document.getElementById('screen-ride');
+  if (screenRideF) { screenRideF.classList.remove('tint-ahead', 'tint-behind'); }
   renderTVBoard();
   saveRecord(ms);
   setTimeout(()=>showResults(ms), 500);
@@ -1036,6 +1213,9 @@ function abortRide() {
   closeModal('modal-abort');
   cancelAnimationFrame(rafId);
   rs.running = false;
+  // Feature H: clear tints on abort
+  const screenRideA = document.getElementById('screen-ride');
+  if (screenRideA) { screenRideA.classList.remove('tint-ahead', 'tint-behind'); }
   navTo('detail');
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -1720,6 +1900,257 @@ function renderElevationProfile(containerId, svgId, altitudes, distances) {
   }
 }
 
+// ── Feature B: Split reveal overlay ──────────────
+function showSplitOverlay(cpName, splitMs, ghostSplitMs) {
+  const ov = document.getElementById('split-overlay');
+  if (!ov) return;
+  document.getElementById('sov-cp').textContent = cpName;
+  document.getElementById('sov-time').textContent = fmtTime(splitMs);
+
+  const deltaEl = document.getElementById('sov-delta');
+  const r = routes[viewIdx];
+  const recs = r?.records || [];
+
+  if (ghostSplitMs && ghostSplitMs > 0) {
+    const delta = splitMs - ghostSplitMs;
+    const sign = delta > 0 ? '+' : '';
+    deltaEl.textContent = `${sign}${fmtTime(Math.abs(delta))} vs PB`;
+    deltaEl.className = 'split-overlay-delta ' + (delta > 0 ? 'behind' : 'ahead');
+    document.getElementById('sov-time').style.color = delta > 0 ? '#FF5566' : '#4CAF50';
+  } else {
+    deltaEl.textContent = 'První čas!';
+    deltaEl.className = 'split-overlay-delta ahead';
+    document.getElementById('sov-time').style.color = '#FFD700';
+  }
+
+  const rankEl = document.getElementById('sov-rank');
+  if (recs.length > 0) {
+    rankEl.textContent = `Jízda ${recs.length + 1} na trase`;
+  } else {
+    rankEl.textContent = 'První jízda na trase!';
+  }
+
+  ov.classList.add('show');
+  clearTimeout(ov._t);
+  ov._t = setTimeout(() => ov.classList.remove('show'), 2200);
+}
+
+// ── Feature E: Motivational messages ─────────────
+function showMotiMsg(text, color = '#FFD700') {
+  document.querySelectorAll('.moti-msg').forEach(el => el.remove());
+  const el = document.createElement('div');
+  el.className = 'moti-msg';
+  el.style.color = color;
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function checkMotiMessages(elapsed, cpsDone, totalCps, pctProgress) {
+  if (!rs.running || rs.finished) return;
+
+  const isAhead = ghostPbMs > 0 && elapsed < ghostPbMs * (pctProgress / 100);
+  const stateKey = isAhead ? 'ahead' : 'behind';
+
+  if (_motiLastState !== null && _motiLastState !== stateKey) {
+    if (isAhead) {
+      showMotiMsg('Nabiráš náskok! 🔥', '#4CAF50');
+    } else {
+      showMotiMsg('Zrychluj — ztrácíš! 💨', '#FF5566');
+    }
+  }
+  _motiLastState = stateKey;
+
+  // Halfway milestone
+  if (_motiLastPct < 50 && pctProgress >= 50) {
+    setTimeout(() => showMotiMsg('Polovina za tebou! 💪', '#4B9EFF'), 500);
+  }
+
+  // PB in reach (within 5 seconds)
+  if (ghostPbMs > 0 && isAhead) {
+    const gap = ghostPbMs * (pctProgress / 100) - elapsed;
+    if (gap < 5000 && gap > 0 && _motiLastPct >= pctProgress - 2) {
+      showMotiMsg('PB v dosahu! 🏆', '#FFD700');
+    }
+  }
+
+  _motiLastPct = pctProgress;
+}
+
+// ── Feature F: Elevation dot on ride canvas ───────
+function drawRideElevation() {
+  const canvas = document.getElementById('ride-elev');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth || 300;
+  const H = canvas.height = 90;
+  ctx.clearRect(0, 0, W, H);
+
+  const r = routes[viewIdx];
+  if (!r) return;
+
+  const altitudes = r.elevProfile?.altitude;
+  const distances = r.elevProfile?.distance;
+
+  if (!altitudes || altitudes.length < 2) {
+    // Fall back to elevPoints-based drawing with live position
+    if (r.elevPoints && r.elevPoints.length >= 2) {
+      const pts = r.elevPoints;
+      const maxD = r.totalDist || pts[pts.length-1].dist || 1;
+      const eles = pts.map(p => p.ele);
+      const minE = Math.min(...eles), maxE = Math.max(...eles);
+      const rngE = maxE - minE || 1;
+      const pad = { t:8, b:8, l:4, r:4 };
+      const W2 = W - pad.l - pad.r;
+      const H2 = H - pad.t - pad.b;
+      const px = d => pad.l + (d / maxD) * W2;
+      const py = e => pad.t + H2 - ((e - minE) / rngE) * H2;
+
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, 'rgba(75,158,255,0.35)');
+      grad.addColorStop(1, 'rgba(75,158,255,0.05)');
+      ctx.beginPath();
+      ctx.moveTo(px(pts[0].dist), py(pts[0].ele));
+      pts.forEach(p => ctx.lineTo(px(p.dist), py(p.ele)));
+      ctx.lineTo(px(pts[pts.length-1].dist), H);
+      ctx.lineTo(px(pts[0].dist), H);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      pts.forEach((p, i) => i === 0 ? ctx.moveTo(px(p.dist), py(p.ele)) : ctx.lineTo(px(p.dist), py(p.ele)));
+      ctx.strokeStyle = '#4B9EFF';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Live position dot
+      const cpsDone = rs.cps.filter(c => c.hitTime != null).length;
+      const totalCps = rs.cps.length;
+      const fraction = totalCps > 0 ? cpsDone / (totalCps + 1) : (rs.elapsed / (ghostPbMs || 1));
+      const posD = Math.min(fraction * maxD, maxD);
+      const posX = px(posD);
+      let posY = py(pts[pts.length-1].ele);
+      for (let i = 1; i < pts.length; i++) {
+        if (pts[i].dist >= posD) { posY = py(pts[i].ele); break; }
+      }
+
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#4CAF50';
+      ctx.beginPath();
+      ctx.arc(posX, posY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#4CAF50';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(posX, posY, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    } else {
+      // No data — draw minimal indicator
+      ctx.fillStyle = 'rgba(75,158,255,0.08)';
+      ctx.fillRect(0, H * 0.6, W, H * 0.4);
+      if (r.elevM || r.totalElev) {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '11px monospace';
+        ctx.fillText(`+${r.elevM || r.totalElev || 0}m`, 8, H - 8);
+      }
+    }
+    return;
+  }
+
+  // Draw from Strava elevation profile streams
+  const minA = Math.min(...altitudes), maxA = Math.max(...altitudes);
+  const range = maxA - minA || 1;
+  const maxD = distances ? Math.max(...distances) : altitudes.length - 1;
+
+  const toX = (i) => ((distances ? distances[i] : i) / maxD) * W;
+  const toY = (a) => H - 8 - ((a - minA) / range) * (H - 20);
+
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  altitudes.forEach((a, i) => ctx.lineTo(toX(i), toY(a)));
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(75,158,255,0.35)');
+  grad.addColorStop(1, 'rgba(75,158,255,0.05)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  altitudes.forEach((a, i) => i === 0 ? ctx.moveTo(toX(i), toY(a)) : ctx.lineTo(toX(i), toY(a)));
+  ctx.strokeStyle = '#4B9EFF';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Live position dot
+  const cpsDone = rs.cps.filter(c => c.hitTime != null).length;
+  const totalCps = rs.cps.length;
+  const fraction = totalCps > 0 ? cpsDone / (totalCps + 1) : (rs.elapsed / (ghostPbMs || 1));
+  const posX = Math.min(fraction * W, W - 4);
+  const altIdx = Math.min(Math.floor(fraction * altitudes.length), altitudes.length - 1);
+  const posY = toY(altitudes[altIdx]);
+
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = '#4CAF50';
+  ctx.beginPath();
+  ctx.arc(posX, posY, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#4CAF50';
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(posX, posY, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px monospace';
+  ctx.fillText(`${Math.round(maxA)}m`, 4, 14);
+  ctx.fillText(`${Math.round(minA)}m`, 4, H - 4);
+}
+
+// ── Feature I: F1-style split animation ──────────
+function showF1Split(splitMs, ghostSplitMs, cpIdx) {
+  const el = document.createElement('div');
+  el.className = 'f1-split-fly';
+
+  const cpRow = document.getElementById(`cp-row-${cpIdx}`);
+  const startY = cpRow ? cpRow.getBoundingClientRect().top : window.innerHeight * 0.6;
+  el.style.left = '50%';
+  el.style.bottom = `${window.innerHeight - startY}px`;
+
+  if (ghostSplitMs > 0) {
+    const delta = splitMs - ghostSplitMs;
+    const sign = delta > 0 ? '+' : '';
+    el.textContent = `${sign}${fmtTime(Math.abs(delta))}`;
+    el.classList.add(delta > 0 ? 'behind' : 'ahead');
+  } else {
+    el.textContent = fmtTime(splitMs);
+    el.classList.add('ahead');
+  }
+
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+
+// ── Feature G: Landscape / Race mode toggle ───────
+function toggleRaceMode() {
+  _raceModeForced = !_raceModeForced;
+  const layout = document.getElementById('ride-race-layout');
+  if (layout) {
+    layout.style.cssText = _raceModeForced
+      ? 'display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 52px);overflow:hidden'
+      : '';
+  }
+  const btn = document.getElementById('race-mode-btn');
+  if (btn) btn.style.opacity = _raceModeForced ? '1' : '0.5';
+}
+window.addEventListener('resize', () => {
+  // Re-apply forced race mode on resize if active
+  if (_raceModeForced) toggleRaceMode();
+});
+
 // ── Ghost timer update ────────────────────────────
 function updateGhostBar(elapsedMs) {
   const bar = document.getElementById('ghost-bar');
@@ -2050,6 +2481,11 @@ async function openStravaRouteCreator(activity) {
       const streamsData = await streamsRes.json();
       if (streamsData.streams?.altitude) {
         renderElevationProfile('src-elev-wrap', 'src-elev-svg', streamsData.streams.altitude, streamsData.streams.distance);
+        // Store elevation profile data on creator activity for Feature F
+        stravaCreatorActivity._elevProfile = {
+          altitude: streamsData.streams.altitude,
+          distance: streamsData.streams.distance
+        };
       }
     } catch(e) {
       console.warn('Could not fetch activity detail:', e.message);
@@ -2132,6 +2568,8 @@ function confirmCreateRouteFromStrava() {
     checkpoints: [],
     type: 'strava',
     elevPoints: [],
+    // Feature F: store elevation profile from Strava streams
+    elevProfile: stravaCreatorActivity._elevProfile || null,
     records: [{
       date:        stravaCreatorActivity.date,
       totalMs:     stravaCreatorActivity.durationMs,
