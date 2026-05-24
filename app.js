@@ -46,20 +46,22 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   updateBackground();
-  // mark drawer item
+  // mark drawer item (splash counts as home for highlighting)
+  const activeNav = name === 'splash' ? 'home' : name;
   ['home','stats','add'].forEach(n => {
     const el = document.getElementById('nav-' + n);
-    if (el) el.classList.toggle('active', n === name);
+    if (el) el.classList.toggle('active', n === activeNav);
   });
 }
 
 function navTo(name, clearStack) {
-  if (clearStack || name === 'home') {
+  if (clearStack || name === 'home' || name === 'splash') {
     navStack = [];
   } else if (curScreen && curScreen !== name) {
     navStack.push(curScreen);
   }
   closeDrawer();
+  if (name === 'splash') renderSplash();
   if (name === 'home')   renderHome();
   if (name === 'detail') renderDetail();
   if (name === 'add')    initAddScreen();
@@ -67,11 +69,22 @@ function navTo(name, clearStack) {
   showScreen(name);
 }
 
+function renderSplash() {
+  const stats = computeAggregateStats('all');
+  const ridesEl = document.getElementById('spl-rides');
+  const kmEl    = document.getElementById('spl-km');
+  const routEl  = document.getElementById('spl-routes');
+  if (ridesEl) ridesEl.textContent = stats.totalRides;
+  if (kmEl)    kmEl.textContent    = stats.totalKm.toFixed(0);
+  if (routEl)  routEl.textContent  = routes.length;
+}
+
 function goBack() {
   const prev = navStack.pop();
   if (!prev || prev === curScreen) { navTo('home', true); return; }
   // Navigate back without pushing to stack
   closeDrawer();
+  if (prev === 'splash') { renderSplash(); showScreen('splash'); }
   if (prev === 'home')   { renderHome();   showScreen('home'); }
   if (prev === 'detail') { renderDetail(); showScreen('detail'); }
   if (prev === 'stats')  { renderStats();  showScreen('stats'); }
@@ -84,7 +97,7 @@ function updateBackground() {
 
   if ((curScreen === 'detail' || curScreen === 'ride' || curScreen === 'results') && viewIdx !== null && routes[viewIdx]) {
     wall = routes[viewIdx].wallpaper || DEFAULT_WALL;
-  } else if (curScreen === 'home') {
+  } else if (curScreen === 'splash' || curScreen === 'home') {
     wall = 'wall7';   // plains road
   } else if (curScreen === 'stats') {
     wall = 'wall6';   // pastoral
@@ -93,7 +106,9 @@ function updateBackground() {
   }
   bg.style.backgroundImage = `url(${wallpaperUrl(wall)})`;
   // Screen-specific overlay class
-  bg.className = curScreen === 'stats' ? 'bg-stats' : '';
+  if (curScreen === 'stats') bg.className = 'bg-stats';
+  else if (curScreen === 'splash') bg.className = 'bg-splash';
+  else bg.className = '';
 }
 
 // ── DRAWER ─────────────────────────────────────────
@@ -576,8 +591,8 @@ function updateRideUI() {
       el.textContent = (diff<=0?'▲ ':'▼ +') + fmtTime(Math.abs(diff));
     }
   }
-  // Throttle TV board: update at most once per second
-  if (rs._tvLastUpdate < 0 || (rs.elapsed - rs._tvLastUpdate) >= 1000) {
+  // Throttle TV board: update at most twice per second (smooth drop effect)
+  if (rs._tvLastUpdate < 0 || (rs.elapsed - rs._tvLastUpdate) >= 500) {
     rs._tvLastUpdate = rs.elapsed;
     renderTVBoard();
   }
@@ -589,63 +604,66 @@ function updateRideUI() {
 const TV_ROW_H = 52; // px per row (must match CSS padding+content)
 
 function buildTVEntries(r) {
-  const recs = r.records || [];
-  const cps  = rs.cps;
-  const nextCpIdx = rs.cpIdx;           // index of NEXT (upcoming) checkpoint
-  const lastHit = [...cps].reverse().find(c=>c.hitTime!==null);
-  const ci = lastHit ? cps.indexOf(lastHit) : -1;
+  const recs      = r.records || [];
+  const cps       = rs.cps;
+  const nextCpIdx = rs.cpIdx;  // index of NEXT (not yet hit) checkpoint
+  const lastHit   = [...cps].reverse().find(c => c.hitTime !== null);
 
-  // Header: show target (next CP or finish)
+  // ── Header: always show which target we're comparing to ──
   const nextCP = rs.finished ? null : cps[nextCpIdx];
-  const nextLabel = rs.finished
-    ? '🏁 CÍL'
-    : nextCP
-      ? `Cíl: <span class="tv-hdr-cp">${nextCP.name || ('CP '+(nextCpIdx+1))}</span>`
-      : '<span class="tv-hdr-cp">START</span>';
-  document.getElementById('tv-cp-info').innerHTML = nextLabel;
+  if (rs.finished) {
+    document.getElementById('tv-cp-info').innerHTML = '<span class="tv-hdr-cp">🏁 CÍL</span>';
+  } else if (nextCP) {
+    document.getElementById('tv-cp-info').innerHTML =
+      `→ <span class="tv-hdr-cp">${nextCP.name || ('CP '+(nextCpIdx+1))}</span>`;
+  } else {
+    // all CPs passed, heading to finish
+    document.getElementById('tv-cp-info').innerHTML =
+      '→ <span class="tv-hdr-cp">🏁 Cíl</span>';
+  }
 
-  // Estimated "me" time at next CP (or total if finished):
-  // If finished → rs.elapsed
-  // If hit last CP → interpolate: elapsed * (distNext / distLast)
-  // If no CP hit → not comparable yet (null)
+  // ── My estimated time AT the next target ──
+  // Rule: from the very first second the timer runs, "me" has a refTime
+  // so the row immediately appears and gradually drops as time passes.
   let myETA = null;
   if (rs.finished) {
     myETA = rs.elapsed;
-  } else if (lastHit && rs.elapsed > 0 && lastHit.km > 0) {
-    const distNext = nextCP ? nextCP.km : r.totalDist || lastHit.km;
-    myETA = rs.elapsed * (distNext / lastHit.km);
-  } else if (lastHit) {
-    myETA = lastHit.hitTime; // fallback: last CP time
+  } else if (rs.running || rs.elapsed > 0) {
+    if (lastHit && lastHit.km > 0) {
+      // Interpolate pace from last-hit CP → project onto next CP distance
+      const distTarget = nextCP ? nextCP.km : (r.totalDist || lastHit.km);
+      myETA = rs.elapsed * (distTarget / lastHit.km);
+    } else {
+      // Before first CP: live elapsed IS the reference (pace unknown, use raw time)
+      myETA = rs.elapsed;
+    }
   }
 
-  // Historical rides: their time at next CP (or total if finished)
+  // ── Historical rides: their ACTUAL time at the same target (nextCpIdx) ──
   const entries = recs.map((rec, idx) => {
-    const date = new Date(rec.date).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit'});
+    const date = new Date(rec.date).toLocaleDateString('cs-CZ', {day:'2-digit', month:'2-digit'});
     let refTime = null;
     if (rs.finished) {
       refTime = rec.totalMs;
-    } else if (nextCpIdx > 0 && rec.checkpoints?.[nextCpIdx - 1]?.hitTime != null) {
-      // Use last hit CP's time from history (since we can't predict next CP for history)
-      refTime = rec.checkpoints[ci]?.hitTime ?? null;
-    } else if (ci >= 0 && rec.checkpoints?.[ci]?.hitTime != null) {
-      refTime = rec.checkpoints[ci].hitTime;
+    } else {
+      // Use their real split at the next checkpoint we're headed to
+      refTime = rec.checkpoints?.[nextCpIdx]?.hitTime ?? null;
     }
     return { key: 'ride-' + idx, isMe: false, name: `Jízda #${idx+1}`, sub: date, refTime };
   });
 
   // Add "me"
-  entries.push({
-    key: 'me', isMe: true,
-    name: '👤 Já',
-    sub: rs.finished ? 'právě teď' : (lastHit ? 'v jízdě' : 'připraven'),
-    refTime: myETA
-  });
+  const meSub = rs.finished ? 'právě teď'
+               : !rs.running && rs.elapsed === 0 ? 'připraven'
+               : lastHit ? 'v jízdě'
+               : 'na trati';
+  entries.push({ key: 'me', isMe: true, name: '👤 Já', sub: meSub, refTime: myETA });
 
-  // Sort: comparable first (by refTime asc), non-comparable at bottom
-  const ranked = [...entries].sort((a,b) => {
-    if (a.refTime===null && b.refTime===null) return 0;
-    if (a.refTime===null) return 1;
-    if (b.refTime===null) return -1;
+  // Sort: comparable first by refTime asc, non-comparable at bottom
+  const ranked = [...entries].sort((a, b) => {
+    if (a.refTime === null && b.refTime === null) return 0;
+    if (a.refTime === null) return 1;
+    if (b.refTime === null) return -1;
     return a.refTime - b.refTime;
   });
 
@@ -1347,5 +1365,6 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 }
 
 // ── INIT ──────────────────────────────────────────
-renderHome();
+curScreen = 'splash';
+renderSplash();
 updateBackground();

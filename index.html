@@ -909,12 +909,84 @@ body {
 @keyframes tin { from{opacity:0;transform:translateX(-50%) translateY(10px)} }
 @keyframes tout { to{opacity:0;transform:translateX(-50%) translateY(-10px)} }
 
+/* Splash screen: very light overlay — wallpaper pours through */
+#app-bg.bg-splash::after {
+  background: linear-gradient(180deg,
+    rgba(10,14,26,0.18) 0%,
+    rgba(10,14,26,0.45) 50%,
+    rgba(10,14,26,0.80) 100%);
+}
+
 /* Stats screen: slightly lighter overlay so wallpaper shows more */
 #app-bg.bg-stats::after {
   background: linear-gradient(180deg,
     rgba(10,14,26,0.28) 0%,
     rgba(10,14,26,0.55) 40%,
     rgba(10,14,26,0.82) 100%);
+}
+
+/* ═════════ SPLASH SCREEN ═════════ */
+.splash-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; min-height: -webkit-fill-available;
+  padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 36px);
+  gap: 30px;
+}
+.splash-logo-section {
+  text-align: center;
+  animation: splashIn 0.65s cubic-bezier(.34,1.3,.64,1) both;
+}
+.splash-icon {
+  font-size: 88px; line-height: 1;
+  filter: drop-shadow(0 4px 24px rgba(77,159,255,0.5));
+  display: block; margin-bottom: 12px;
+}
+.splash-title {
+  font-size: 44px; font-weight: 900; letter-spacing: -1.5px;
+  background: linear-gradient(135deg, #fff 0%, var(--blue) 50%, var(--cyan) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; line-height: 1.1;
+}
+.splash-sub {
+  font-size: 13px; color: var(--text2); margin-top: 8px;
+  line-height: 1.6; letter-spacing: 0.2px;
+}
+.splash-stats-row {
+  display: flex; gap: 24px; justify-content: center;
+  font-family: var(--mono); font-size: 13px; color: var(--text2);
+  animation: splashIn 0.65s 0.1s cubic-bezier(.34,1.3,.64,1) both;
+}
+.splash-stat-val { color: var(--text); font-weight: 700; font-size: 18px; display: block; }
+.splash-stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.splash-stat-item { text-align: center; }
+.splash-menu {
+  display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: 380px;
+  animation: splashIn 0.65s 0.18s cubic-bezier(.34,1.3,.64,1) both;
+}
+.splash-btn {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg); padding: 18px 20px; cursor: pointer;
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  transition: transform 0.12s, background 0.15s;
+  box-shadow: var(--shadow);
+}
+.splash-btn:active { transform: scale(0.96); background: var(--bg-glass-2); }
+.splash-btn-ico { font-size: 30px; flex-shrink: 0; width: 38px; text-align: center; }
+.splash-btn-body { flex: 1; }
+.splash-btn-lbl { font-size: 16px; font-weight: 700; color: var(--text); }
+.splash-btn-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.splash-btn-arr { font-size: 20px; color: var(--text3); }
+.splash-foot {
+  font-size: 11px; color: var(--text3); font-family: var(--mono);
+  animation: splashIn 0.65s 0.28s cubic-bezier(.34,1.3,.64,1) both;
+}
+@keyframes splashIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ═════════ MISC ═════════ */
@@ -968,8 +1040,63 @@ body {
   </div>
 </aside>
 
+<!-- ═══════════ SPLASH ═══════════ -->
+<div id="screen-splash" class="screen active">
+  <div class="splash-wrap">
+    <div class="splash-logo-section">
+      <span class="splash-icon">🚴</span>
+      <div class="splash-title">VeloTimer</div>
+      <div class="splash-sub">Cyklistický trenažér · trasy · časy · ghost racing</div>
+    </div>
+
+    <div class="splash-stats-row" id="splash-stats-row">
+      <div class="splash-stat-item">
+        <span class="splash-stat-val" id="spl-rides">—</span>
+        <div class="splash-stat-lbl">jízd</div>
+      </div>
+      <div class="splash-stat-item">
+        <span class="splash-stat-val" id="spl-km">—</span>
+        <div class="splash-stat-lbl">km celkem</div>
+      </div>
+      <div class="splash-stat-item">
+        <span class="splash-stat-val" id="spl-routes">—</span>
+        <div class="splash-stat-lbl">tras</div>
+      </div>
+    </div>
+
+    <div class="splash-menu">
+      <div class="splash-btn" onclick="navTo('home')">
+        <div class="splash-btn-ico">🗺</div>
+        <div class="splash-btn-body">
+          <div class="splash-btn-lbl">Moje trasy</div>
+          <div class="splash-btn-sub">přehled, detail, spuštění jízdy</div>
+        </div>
+        <div class="splash-btn-arr">›</div>
+      </div>
+      <div class="splash-btn" onclick="navTo('stats')">
+        <div class="splash-btn-ico">📊</div>
+        <div class="splash-btn-body">
+          <div class="splash-btn-lbl">Statistiky</div>
+          <div class="splash-btn-sub">km, čas, rekordy, přehledy</div>
+        </div>
+        <div class="splash-btn-arr">›</div>
+      </div>
+      <div class="splash-btn" onclick="navTo('add')">
+        <div class="splash-btn-ico">➕</div>
+        <div class="splash-btn-body">
+          <div class="splash-btn-lbl">Nová trasa</div>
+          <div class="splash-btn-sub">ručně nebo import GPX souboru</div>
+        </div>
+        <div class="splash-btn-arr">›</div>
+      </div>
+    </div>
+
+    <div class="splash-foot">VeloTimer v3 · PWA</div>
+  </div>
+</div>
+
 <!-- ═══════════ HOME ═══════════ -->
-<div id="screen-home" class="screen active">
+<div id="screen-home" class="screen">
   <div class="hdr">
     <div class="hdr-menu-btn" onclick="openDrawer()"><span></span></div>
     <div class="hdr-title">VeloTimer</div>
