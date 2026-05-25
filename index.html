@@ -1226,28 +1226,36 @@ body {
 
 /* ── Card flip (route card) ─────────────── */
 .route-card-wrap {
-  perspective: 800px;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
 }
 .route-card-inner {
   transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              -webkit-transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 .route-card-wrap.flipped .route-card-inner {
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
-.route-card-front, .route-card-back {
+.route-card-front {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  position: relative;
 }
 .route-card-back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   position: absolute; inset: 0;
   transform: rotateY(180deg);
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
+  -webkit-transform: rotateY(180deg);
+  background: rgba(20,22,40,0.96);
   border-radius: var(--r-lg);
   padding: 14px;
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  border: 1px solid var(--glass-border);
 }
 .card-back-stat {
   display: flex; justify-content: space-between; align-items: center;
@@ -1830,6 +1838,140 @@ body {
 .diff-epic   { background: rgba(156,39,176,0.2); color: #9C27B0; }
 
 /* ═══════════════════════════════════
+   LIGHT MODE
+═══════════════════════════════════ */
+body.light-mode {
+  --bg: #eef1f7;
+  --bg-glass: rgba(255,255,255,0.75);
+  --glass-border: rgba(0,0,0,0.10);
+  --text: #1a1a2e;
+  --text2: #4a4a6a;
+  --text3: #8888aa;
+}
+body.light-mode #app-bg { filter: brightness(1.3) saturate(0.6); }
+body.light-mode .screen { background: rgba(238,241,247,0.85); }
+body.light-mode .route-card-back { background: rgba(255,255,255,0.96); }
+
+/* ═══════════════════════════════════
+   STREAK BANNER (home)
+═══════════════════════════════════ */
+.streak-banner {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 16px 14px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(255,107,53,0.18), rgba(255,193,7,0.12));
+  border: 1px solid rgba(255,107,53,0.3);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  animation: slideDown 0.4s ease;
+}
+@keyframes slideDown {
+  from { opacity:0; transform: translateY(-8px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.streak-fire { font-size: 26px; }
+.streak-text { flex: 1; }
+.streak-num  { font-size: 20px; font-weight: 900; font-family: var(--mono); color: #FF6B35; }
+.streak-label{ font-size: 11px; color: var(--text2); }
+
+/* ═══════════════════════════════════
+   QUICK-START BUTTON (home)
+═══════════════════════════════════ */
+.qs-start-btn {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 16px 16px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(75,158,255,0.22), rgba(41,121,255,0.12));
+  border: 1px solid rgba(75,158,255,0.35);
+  border-radius: 16px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.qs-start-btn:active { transform: scale(0.97); }
+.qs-start-icon { font-size: 30px; }
+.qs-start-body { flex: 1; min-width: 0; }
+.qs-start-label { font-size: 11px; color: var(--text2); margin-bottom: 2px; }
+.qs-start-name  { font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-start-meta  { font-size: 11px; color: var(--text2); font-family: var(--mono); margin-top: 2px; }
+.qs-start-go    { font-size: 22px; }
+
+/* ═══════════════════════════════════
+   MONTHLY GOAL WIDGET (stats)
+═══════════════════════════════════ */
+.monthly-goal-wrap {
+  margin: 0 16px 16px;
+  background: var(--bg-glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  backdrop-filter: blur(12px);
+}
+.monthly-goal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.monthly-goal-title { font-size: 13px; font-weight: 700; }
+.monthly-goal-edit  { font-size: 12px; color: var(--blue); cursor: pointer; padding: 4px 8px; }
+.monthly-goal-bar-bg {
+  height: 10px; border-radius: 5px;
+  background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 8px;
+}
+.monthly-goal-bar-fill {
+  height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+}
+.monthly-goal-stats {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--text2); font-family: var(--mono);
+}
+.monthly-goal-pct { font-weight: 700; color: var(--blue); }
+.monthly-goal-input-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+}
+.monthly-goal-input-row input {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px; color: #fff; padding: 6px 10px;
+  font-size: 14px; width: 80px; text-align: center;
+}
+body.light-mode .monthly-goal-input-row input { color: var(--text); }
+
+/* ═══════════════════════════════════
+   ACHIEVEMENTS (stats)
+═══════════════════════════════════ */
+.achievements-wrap {
+  padding: 0 16px 16px;
+}
+.achievement-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.ach-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 12px 8px; text-align: center;
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.ach-card.earned {
+  border-color: rgba(255,215,0,0.4);
+  background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,107,53,0.08));
+  box-shadow: 0 2px 12px rgba(255,215,0,0.15);
+}
+.ach-card.locked { opacity: 0.4; }
+.ach-ico  { font-size: 26px; margin-bottom: 4px; }
+.ach-name { font-size: 10px; font-weight: 700; line-height: 1.2; }
+.ach-date { font-size: 9px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+@keyframes achUnlock {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.ach-card.just-earned { animation: achUnlock 0.6s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+/* ═══════════════════════════════════
    POWER CURVE
 ═══════════════════════════════════ */
 .power-curve-wrap {
@@ -2064,6 +2206,8 @@ body {
     </div>
 
     <div class="quick-stats" id="home-quick"></div>
+<div id="home-streak-banner" style="display:none"></div>
+<div id="home-quickstart" style="display:none"></div>
 
     <div class="section-bar">
       <div class="section-title">Moje trasy</div>
@@ -2472,7 +2616,12 @@ body {
     <div class="stats-overview" id="stats-overview"></div>
 
     <!-- Personal Records -->
+    <div id="stats-monthly-goal"></div>
     <div id="stats-pr" style="margin-bottom:16px"></div>
+    <div class="achievements-wrap">
+      <div class="settings-title" style="padding:0 0 8px;">🏅 Achievementy</div>
+      <div class="achievement-grid" id="stats-achievements"></div>
+    </div>
 
     <!-- Heat Calendar -->
     <div style="padding:0 16px 8px;font-weight:800;font-size:15px">📅 Aktivita</div>
@@ -2671,6 +2820,20 @@ body {
         <div><div class="settings-lbl">Noční mód (červený overlay)</div><div class="settings-sub">Zachovává noční vidění</div></div>
         <button class="toggle-switch" id="tog-nightred" onclick="toggleSetting('nightRed')"></button>
       </div>
+      <div class="settings-row">
+              <div>
+                <div class="settings-lbl">☀️ Světlý režim</div>
+                <div class="settings-sub">Přepnout na světlé téma</div>
+              </div>
+              <button class="toggle-switch" id="toggle-lightmode" onclick="toggleSetting('lightMode', this)"></button>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-lbl">🔊 Hlasová oznámení</div>
+                <div class="settings-sub">Čtení časů na checkpointech</div>
+              </div>
+              <button class="toggle-switch" id="toggle-voice" onclick="toggleSetting('voiceAnnouncements', this)"></button>
+            </div>
       <div class="settings-row">
         <div><div class="settings-lbl">Barva tématu</div></div>
         <div style="display:flex;gap:8px">

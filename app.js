@@ -27,10 +27,13 @@ let appSettings = JSON.parse(localStorage.getItem('vt_settings') || JSON.stringi
   units: 'km',
   nightMode: false,
   nightRed: false,
-  ftp: 250,         // Functional Threshold Power (watts)
-  maxHr: 190,       // Max heart rate
-  weight: 75,       // kg
-  themeColor: 'blue', // 'blue' | 'green' | 'orange' | 'purple'
+  ftp: 250,
+  maxHr: 190,
+  weight: 75,
+  themeColor: 'blue',
+  lightMode: false,
+  voiceAnnouncements: false,
+  monthlyGoalKm: 200,
 }));
 
 // ── BIKES / EQUIPMENT ─────────────────────────────
@@ -66,7 +69,24 @@ let navStack = [];   // navigation history for goBack()
 let sortMode  = 'default'; // 'default' | 'name' | 'dist' | 'rides'
 let stravaConnected = false;
 let goals = JSON.parse(localStorage.getItem('vt_goals') || '[]');
-let stravaCreatorActivity = null;  // activity being imported as new route
+let achievements = JSON.parse(localStorage.getItem('vt_achievements') || '[]');
+// achievement: { id, earnedAt }
+let stravaCreatorActivity = null;
+
+// ── ACHIEVEMENT DEFINITIONS ────────────────────────
+const ACHIEVEMENT_DEFS = [
+  { id:'first_ride',  icon:'🎉', name:'První jízda',     desc:'Dokonči první jízdu' },
+  { id:'km_100',      icon:'💯', name:'100 km celkem',   desc:'Najeď celkem 100 km' },
+  { id:'km_500',      icon:'🚀', name:'500 km celkem',   desc:'Najeď celkem 500 km' },
+  { id:'km_1000',     icon:'🌍', name:'1000 km!',        desc:'Najeď celkem 1000 km' },
+  { id:'rides_10',    icon:'🔟', name:'10 jízd',         desc:'Absolvuj 10 jízd' },
+  { id:'rides_50',    icon:'⭐', name:'50 jízd',         desc:'Absolvuj 50 jízd' },
+  { id:'pb_new',      icon:'🏆', name:'Nový rekord',     desc:'Překonej osobní rekord' },
+  { id:'streak_4w',   icon:'🔥', name:'4 týdny v řadě',  desc:'Jeď 4 týdny za sebou' },
+  { id:'early_bird',  icon:'🌅', name:'Ranní ptáče',     desc:'Dokonči jízdu před 7:00' },
+  { id:'night_rider', icon:'🌙', name:'Noční jezdec',    desc:'Dokonči jízdu po 22:00' },
+  { id:'routes_5',    icon:'🗺️', name:'5 tras',          desc:'Vytvoř 5 různých tras' },
+];  // activity being imported as new route
 let ghostPbMs = 0;  // PB time for ghost comparison
 
 // ── RIDE STATE ────────────────────────────────────
@@ -233,6 +253,50 @@ function renderHome() {
       <div class="qs-val">${fmtDuration(stats.totalMs)}</div>
       <div class="qs-lbl">na kole</div>
     </div>`;
+
+  // C: Streak banner
+  const streak = computeStreak();
+  const streakBannerEl = document.getElementById('home-streak-banner');
+  if (streakBannerEl) {
+    if (streak >= 2) {
+      streakBannerEl.innerHTML = `
+        <div class="streak-banner">
+          <div class="streak-fire">🔥</div>
+          <div class="streak-text">
+            <div class="streak-num">${streak} ${streak === 1 ? 'týden' : streak < 5 ? 'týdny' : 'týdnů'} v řadě!</div>
+            <div class="streak-label">Pokračuj v jízdách, skvělá série!</div>
+          </div>
+        </div>`;
+      streakBannerEl.style.display = 'block';
+    } else {
+      streakBannerEl.style.display = 'none';
+    }
+  }
+
+  // B: Quick-start button (last used route)
+  const lastRouteIdx = parseInt(localStorage.getItem('vt_last_route_idx') || '-1', 10);
+  const qsIdx = (lastRouteIdx >= 0 && lastRouteIdx < routes.length) ? lastRouteIdx : (routes.length > 0 ? 0 : -1);
+  const qsEl = document.getElementById('home-quickstart');
+  if (qsEl) {
+    if (qsIdx >= 0) {
+      const qsRoute = routes[qsIdx];
+      const qsDist  = qsRoute.totalDist ? qsRoute.totalDist.toFixed(1) : '—';
+      const qsPB    = qsRoute.records?.length ? fmtTime(qsRoute.records[0].totalMs) : 'žádný čas';
+      qsEl.innerHTML = `
+        <div class="qs-start-btn" onclick="viewIdx=${qsIdx};startRide()">
+          <div class="qs-start-icon">🚴</div>
+          <div class="qs-start-body">
+            <div class="qs-start-label">Rychlý start</div>
+            <div class="qs-start-name">${escHtml(qsRoute.name)}</div>
+            <div class="qs-start-meta">📏 ${qsDist} km · 🏆 PB: ${qsPB}</div>
+          </div>
+          <div class="qs-start-go">▶</div>
+        </div>`;
+      qsEl.style.display = 'block';
+    } else {
+      qsEl.style.display = 'none';
+    }
+  }
 
   const el = document.getElementById('home-routes');
   const cnt = routes.length;
@@ -668,6 +732,12 @@ function startRide() {
   // Feature F: initialize elevation canvas
   drawRideElevation();
 
+  // J: WakeLock — prevent screen from turning off
+  acquireWakeLock();
+
+  // K: Voice announcement
+  speak('Jízda zahájena. Hodně štěstí!');
+
   showScreen('ride');
 }
 
@@ -1090,9 +1160,11 @@ function hitCP(idx) {
   rs.cps[idx].splitMs = idx===0 ? ms : (rs.cps[idx-1].hitTime!==null ? ms - rs.cps[idx-1].hitTime : null);
   rs.cpIdx = idx + 1;
   rs._tvLastUpdate = -1; // force immediate TV board refresh
-  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
   toast(`✓ CP${idx+1}: ${fmtTime(ms)}`);
   showCpPulse();
+  // K: Voice announcement
+  speak(`Checkpoint ${idx + 1}, čas ${fmtTimeSpeech(ms)}`);
   // CP pulse animation on timer
   const timerEl = document.getElementById('timer-main');
   if (timerEl) {
@@ -1148,6 +1220,10 @@ function finishRide() {
   // Feature H: clear tints on finish
   const screenRideF = document.getElementById('screen-ride');
   if (screenRideF) { screenRideF.classList.remove('tint-ahead', 'tint-behind'); }
+  // J: Release WakeLock
+  releaseWakeLock();
+  // K: Finish voice announcement
+  speak(`Cíl! Celkový čas: ${fmtTimeSpeech(ms)}`);
   renderTVBoard();
   saveRecord(ms);
   setTimeout(()=>showResults(ms), 500);
@@ -1210,16 +1286,22 @@ function saveRecord(ms) {
   r.records.push(rec);
   r.records.sort((a,b) => a.totalMs - b.totalMs);
   saveRoutes();
+  // Track last used route
+  localStorage.setItem('vt_last_route_idx', String(viewIdx));
+
   // PB/first ride detection
   const allTimes = r.records.map(rec2 => rec2.totalMs);
+  const isNewPB = allTimes[0] === ms;
   if (allTimes.length === 1) {
     showAchievement('🎉', `První jízda na trase ${r.name}!`);
-  } else if (allTimes[0] === ms) {
-    // New PB!
+  } else if (isNewPB) {
     launchConfetti();
     showAchievement('🏆', `Nový osobní rekord na ${r.name}!`);
     starBurst(window.innerWidth/2, window.innerHeight/2);
   }
+
+  // Check global achievements
+  checkAchievements({ isNewPB, justFinishedAt: new Date() });
 }
 
 function showResults(ms) {
@@ -1275,6 +1357,7 @@ function confirmAbort() {
 function abortRide() {
   closeModal('modal-abort');
   cancelAnimationFrame(rafId);
+  releaseWakeLock();
   rs.running = false;
   // Feature H: clear tints on abort
   const screenRideA = document.getElementById('screen-ride');
@@ -1362,8 +1445,10 @@ function renderStats() {
     }
   }
 
+  renderMonthlyGoalWidget('stats-monthly-goal');
   renderPersonalRecords('stats-pr');
   renderHeatCalendar('stats-heat');
+  renderAchievements('stats-achievements');
   renderPowerCurve('stats-power');
   renderHRZones('stats-hrz');
   renderWeatherWidget('stats-weather');
@@ -2817,6 +2902,170 @@ function deleteGoal(type) {
 }
 
 // ════════════════════════════════════════════════
+//  ACHIEVEMENTS
+// ════════════════════════════════════════════════
+function checkAchievements({ isNewPB = false, justFinishedAt = null } = {}) {
+  const allRecs = routes.flatMap(r => r.records || []);
+  const totalKm = allRecs.reduce((s, r) => s + (r.distKm || 0), 0);
+  const totalRides = allRecs.length;
+  const earnedIds = new Set(achievements.map(a => a.id));
+  const now = new Date().toISOString();
+  const newOnes = [];
+
+  const earn = (id) => {
+    if (!earnedIds.has(id)) {
+      achievements.push({ id, earnedAt: now });
+      earnedIds.add(id);
+      newOnes.push(id);
+    }
+  };
+
+  if (totalRides >= 1)  earn('first_ride');
+  if (totalKm >= 100)   earn('km_100');
+  if (totalKm >= 500)   earn('km_500');
+  if (totalKm >= 1000)  earn('km_1000');
+  if (totalRides >= 10) earn('rides_10');
+  if (totalRides >= 50) earn('rides_50');
+  if (isNewPB) earn('pb_new');
+  if (computeStreak() >= 4) earn('streak_4w');
+  if (routes.length >= 5)  earn('routes_5');
+  if (justFinishedAt) {
+    const h = justFinishedAt.getHours();
+    if (h < 7)  earn('early_bird');
+    if (h >= 22) earn('night_rider');
+  }
+
+  if (newOnes.length > 0) {
+    localStorage.setItem('vt_achievements', JSON.stringify(achievements));
+    // Show popup for each new achievement
+    newOnes.forEach((id, i) => {
+      const def = ACHIEVEMENT_DEFS.find(d => d.id === id);
+      if (def) setTimeout(() => showAchievement(def.icon, def.name), i * 1200);
+    });
+  }
+}
+
+// ════════════════════════════════════════════════
+//  MONTHLY GOAL WIDGET
+// ════════════════════════════════════════════════
+function renderMonthlyGoalWidget(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const monthName  = now.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+
+  const allRecs = routes.flatMap(r => r.records || []);
+  const monthKm = allRecs
+    .filter(r => new Date(r.date) >= monthStart)
+    .reduce((s, r) => s + (r.distKm || 0), 0);
+
+  const goal = appSettings.monthlyGoalKm || 200;
+  const pct  = Math.min((monthKm / goal) * 100, 100).toFixed(1);
+  const done = monthKm >= goal;
+
+  el.innerHTML = `
+    <div class="monthly-goal-wrap">
+      <div class="monthly-goal-header">
+        <div class="monthly-goal-title">📅 ${monthName} ${done ? '✅' : ''}</div>
+        <span class="monthly-goal-edit" onclick="toggleMonthlyGoalEdit()">✏️ Cíl</span>
+      </div>
+      <div class="monthly-goal-bar-bg">
+        <div class="monthly-goal-bar-fill" id="mgfill" style="width:0%"></div>
+      </div>
+      <div class="monthly-goal-stats">
+        <span>${monthKm.toFixed(1)} km z ${goal} km</span>
+        <span class="monthly-goal-pct">${pct}%</span>
+      </div>
+      <div id="monthly-goal-edit-row" style="display:none" class="monthly-goal-input-row">
+        <input type="number" id="monthly-goal-inp" value="${goal}" min="10" max="10000" step="10">
+        <span>km</span>
+        <button class="btn btn-glass btn-sm" onclick="saveMonthlyGoal()">Uložit</button>
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    const fill = document.getElementById('mgfill');
+    if (fill) fill.style.width = pct + '%';
+  }, 50);
+}
+
+function toggleMonthlyGoalEdit() {
+  const row = document.getElementById('monthly-goal-edit-row');
+  if (row) row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+
+function saveMonthlyGoal() {
+  const inp = document.getElementById('monthly-goal-inp');
+  const val = parseInt(inp?.value || '200', 10);
+  if (val > 0) {
+    appSettings.monthlyGoalKm = val;
+    saveSettings();
+    renderMonthlyGoalWidget('stats-monthly-goal');
+    toast(`✅ Měsíční cíl: ${val} km`);
+  }
+}
+
+function renderAchievements(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const earnedMap = {};
+  achievements.forEach(a => { earnedMap[a.id] = a.earnedAt; });
+
+  el.innerHTML = ACHIEVEMENT_DEFS.map(def => {
+    const earned = !!earnedMap[def.id];
+    const date = earned ? new Date(earnedMap[def.id]).toLocaleDateString('cs-CZ', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    return `<div class="ach-card ${earned ? 'earned' : 'locked'}" title="${def.desc}">
+      <div class="ach-ico">${def.icon}</div>
+      <div class="ach-name">${def.name}</div>
+      ${earned ? `<div class="ach-date">${date}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+//  VOICE ANNOUNCEMENTS (Web Speech API)
+// ════════════════════════════════════════════════
+function speak(text) {
+  if (!appSettings.voiceAnnouncements) return;
+  if (!('speechSynthesis' in window)) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'cs-CZ';
+  utterance.rate = 1.05;
+  utterance.volume = 1.0;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function fmtTimeSpeech(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (h > 0) return `${h} hodin ${min} minut ${sec} sekund`;
+  if (min > 0) return `${min} minut ${sec} sekund`;
+  return `${sec} sekund`;
+}
+
+// ════════════════════════════════════════════════
+//  WAKE LOCK
+// ════════════════════════════════════════════════
+let _wakeLock = null;
+
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+  } catch(e) { console.warn('WakeLock failed:', e.message); }
+}
+
+function releaseWakeLock() {
+  if (_wakeLock) { _wakeLock.release().catch(() => {}); _wakeLock = null; }
+}
+
+// ════════════════════════════════════════════════
 //  APPLY SETTINGS
 // ════════════════════════════════════════════════
 function applySettings() {
@@ -2838,6 +3087,9 @@ function applySettings() {
     nightEl.style.display = appSettings.nightRed ? 'block' : 'none';
     nightEl.style.opacity = appSettings.nightRed ? '0.15' : '0';
   }
+
+  // Light mode
+  document.body.classList.toggle('light-mode', !!appSettings.lightMode);
 }
 
 // ════════════════════════════════════════════════
@@ -2850,6 +3102,8 @@ function renderSettings() {
     if (el) el.classList.toggle('on', !!appSettings[key]);
   };
   syncToggle('tog-nightred', 'nightRed');
+  syncToggle('toggle-lightmode', 'lightMode');
+  syncToggle('toggle-voice', 'voiceAnnouncements');
 
   // Sync inputs
   const syncInp = (id, key) => {
