@@ -334,6 +334,7 @@ function renderHome() {
     const totalRides = (r.records||[]).length;
     const avgTimeMs = totalRides > 0 ? r.records.reduce((s,rc)=>s+rc.totalMs,0)/totalRides : 0;
     const diff = calcRouteDifficulty(r);
+    const typeTag = r.type === 'gpx' ? 'GPX' : r.type === 'strava' ? 'Strava' : 'Manual';
     return `<div class="route-card-wrap" id="route-card-${i}">
       <div class="route-card-inner">
         <div class="route-card-front">
@@ -341,26 +342,30 @@ function renderHome() {
             <div class="route-card-bg" style="background-image:url(${wall})"></div>
             <div class="route-card-grad"></div>
             <div class="route-card-actions">
-              <div class="rc-btn" onclick="event.stopPropagation();openEdit(${i})">✏️</div>
+              <div class="rc-btn" onclick="event.stopPropagation();openEdit(${i})" title="Upravit">✏️</div>
               <div class="rc-btn" onclick="event.stopPropagation();toggleCardFlip(${i})" title="Statistiky">↔</div>
             </div>
             <div class="route-card-body">
               <div class="route-card-top">
-                <div>
+                <div style="flex:1;min-width:0;padding-right:80px;">
                   <div class="route-card-name">${r.name}</div>
-                  <span class="difficulty-badge ${diff.cls}" style="margin-top:4px;display:inline-flex">${diff.ico} ${diff.label}</span>
+                  <div style="margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <span class="difficulty-badge ${diff.cls}">${diff.ico} ${diff.label}</span>
+                    <span class="route-card-type-tag">${typeTag}</span>
+                  </div>
                 </div>
-                <div class="route-card-badge">${r.type === 'gpx' ? 'GPX' : r.type === 'strava' ? 'Strava' : 'Manual'}</div>
               </div>
               <div>
                 <div class="route-card-stats">
                   <span>📏 <strong>${dist}</strong> km</span>
                   <span>⛰ <strong>+${r.totalElev||0}</strong> m</span>
                   <span>🏁 <strong>${(r.checkpoints||[]).length}</strong> CP</span>
-                  <span>📊 <strong>${totalRides}</strong> jízd</span>
+                  <span>📊 <strong>${totalRides}</strong> ${totalRides===1?'jízda':totalRides<5?'jízdy':'jízd'}</span>
                 </div>
-                ${pb ? `<div class="route-card-pb">🏆 PB: ${fmtTime(pb.totalMs)}</div>` : ''}
-                <div id="spark-${i}"></div>
+                <div class="route-card-bottom-row">
+                  ${pb ? `<div class="route-card-pb">🏆 PB: <strong>${fmtTime(pb.totalMs)}</strong></div>` : '<div></div>'}
+                  <div id="spark-${i}"></div>
+                </div>
               </div>
             </div>
           </div>
