@@ -424,31 +424,60 @@ function renderDetail() {
   const hero = document.getElementById('det-hero');
   hero.style.backgroundImage = `url(${wallpaperUrl(r.wallpaper || DEFAULT_WALL)})`;
   document.getElementById('det-hero-name').textContent = r.name;
-  document.getElementById('det-hero-sub').textContent = `${r.type === 'gpx' ? 'GPX trasa' : 'Ručně zadáno'} · ${(r.checkpoints||[]).length} CP · ${(r.records||[]).length} jízd`;
+  const typeLabel = r.type === 'gpx' ? 'GPX trasa' : r.type === 'strava' ? 'Strava' : 'Ručně zadáno';
+  const ridesCount = (r.records||[]).length;
+  document.getElementById('det-hero-sub').textContent = `${typeLabel} · ${(r.checkpoints||[]).length} CP · ${ridesCount} ${ridesCount===1?'jízda':ridesCount<5?'jízdy':'jízd'}`;
   document.getElementById('dh-dist').textContent = (r.totalDist||0).toFixed(1);
   document.getElementById('dh-up').textContent   = '+' + (r.totalElev||0);
   document.getElementById('dh-down').textContent = '-' + (r.totalDesc||0);
 
-  // Profile
-  document.getElementById('det-profile-hdr').innerHTML = `
-    <div class="profile-stat"><span class="pos">+${r.totalElev||0}</span><small>m stoupání</small></div>
-    <div class="profile-stat"><span class="neg">-${r.totalDesc||0}</span><small>m klesání</small></div>`;
-  setTimeout(()=>drawElevation(r,'det-elev-canvas',120,true), 30);
+  // Mini stats grid
+  const recs = r.records || [];
+  const pb = recs.length ? recs[0] : null;
+  const avgMs = recs.length ? recs.reduce((s,rc)=>s+rc.totalMs,0)/recs.length : 0;
+  const pbPaceMinKm = (pb && r.totalDist) ? (pb.totalMs/1000/60)/r.totalDist : 0;
+  const statsGrid = document.getElementById('det-stats-grid');
+  if (statsGrid) {
+    const miniCard = (val, lbl, cls='') =>
+      `<div class="det-stat-card"><div class="det-stat-val ${cls}">${val}</div><div class="det-stat-lbl">${lbl}</div></div>`;
+    statsGrid.innerHTML =
+      miniCard(pb ? fmtTime(pb.totalMs) : '—', '🏆 PB čas', 'gold') +
+      miniCard(recs.length.toString(), '📊 Jízdy', 'blue') +
+      miniCard((r.totalDist||0).toFixed(1)+' km', '📏 Délka') +
+      miniCard('+' + (r.totalElev||0) + ' m', '⛰ Stoupání', 'up') +
+      miniCard(avgMs ? fmtTime(avgMs) : '—', '⏱ Průměr') +
+      miniCard(pbPaceMinKm ? fmtPace(pbPaceMinKm) : '—', '⚡ PB tempo');
+  }
+
+  // Profile — show only if elevation data exists
+  const hasElev = (r.elevProfile?.altitude?.length > 2) || (r.elevPoints?.length > 2);
+  const profileWrap = document.getElementById('det-profile-wrap');
+  if (profileWrap) profileWrap.style.display = hasElev ? 'block' : 'none';
+  if (hasElev) {
+    document.getElementById('det-profile-hdr').innerHTML = `
+      <div class="profile-stat"><span class="pos">+${r.totalElev||0}</span><small>m stoupání</small></div>
+      <div class="profile-stat"><span class="neg">-${r.totalDesc||0}</span><small>m klesání</small></div>`;
+    setTimeout(()=>drawElevation(r,'det-elev-canvas',110,true), 30);
+  }
 
   // Checkpoints
   const cpEl = document.getElementById('det-cps');
   if (!r.checkpoints?.length) {
     cpEl.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;">Žádné checkpointy</div>';
   } else {
-    cpEl.innerHTML = r.checkpoints.map((cp,i) =>
-      `<div class="cp-item">
+    cpEl.innerHTML = r.checkpoints.map((cp,i) => {
+      // Best split at this CP across all rides
+      const splits = recs.map(rec => rec.checkpoints?.[i]?.splitMs).filter(Boolean);
+      const bestSplit = splits.length ? Math.min(...splits) : null;
+      return `<div class="cp-item">
         <div class="cp-num">${i+1}</div>
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:600;">${cp.name||'CP '+(i+1)}</div>
           <div style="font-size:12px;color:var(--text2);font-family:var(--mono);">${cp.km.toFixed(2)} km</div>
         </div>
-      </div>`
-    ).join('');
+        ${bestSplit ? `<div style="font-size:11px;color:var(--gold);font-family:var(--mono);text-align:right;">🏆 ${fmtTime(bestSplit)}</div>` : ''}
+      </div>`;
+    }).join('');
   }
 
   renderLeaderboard('det-leaderboard', r);
@@ -1238,43 +1267,85 @@ function renderRideCPs() {
   const el = document.getElementById('ride-cps');
   const r  = routes[viewIdx];
   const cps = rs.cps;
+  const pb  = r?.records?.length ? r.records[0] : null;
+
+  // ── No checkpoints ──────────────────────────────
   if (!cps.length) {
-    el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:16px;">Žádné checkpointy — přidej je v editaci trasy</div>';
     if (rs.running && !rs.finished) {
-      el.innerHTML += `<button class="btn btn-green btn-block btn-lg" style="margin-top:8px;" onclick="finishRide()">🏁 CÍLEM!</button>`;
+      el.innerHTML = `<div class="next-cp-focus done-all">
+        <div class="ncf-num">🏁</div>
+        <div class="ncf-body">
+          <div class="ncf-name">Cíl je přímo před tebou!</div>
+          <div class="ncf-km">Žádné checkpointy</div>
+        </div>
+        <button class="ncf-fin-btn" onclick="finishRide()">CÍLEM!<br>🏁</button>
+      </div>`;
+    } else {
+      el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px;">Žádné checkpointy</div>';
     }
     return;
   }
-  const pb = r.records?.length ? r.records[0] : null;
-  el.innerHTML = cps.map((cp,i) => {
-    const done = cp.hitTime !== null;
-    const isNext = !done && i===rs.cpIdx;
-    const cls = done ? 'done' : isNext ? 'next' : '';
-    const pbCp = pb?.checkpoints?.[i];
-    let gDiff = '';
-    if (done && pbCp?.hitTime != null) {
-      const d = cp.hitTime - pbCp.hitTime;
-      gDiff = `<div class="cp-gdiff ${d<=0?'g-fast':'g-slow'}">${d<=0?'▲ ':'▼ +'}${fmtTime(Math.abs(d))}</div>`;
+
+  const doneCps  = cps.filter(c => c.hitTime !== null);
+  const nextIdx  = rs.cpIdx;           // index of next (not yet hit) CP
+  const nextCp   = cps[nextIdx];       // undefined when all done
+  const allDone  = nextIdx >= cps.length;
+  const remaining = cps.length - doneCps.length;
+
+  let html = '';
+
+  // ── NEXT CP focus card ──────────────────────────
+  if (!rs.finished) {
+    if (allDone) {
+      // All CPs hit, show FINISH button
+      html += `<div class="next-cp-focus done-all">
+        <div class="ncf-num">🏁</div>
+        <div class="ncf-body">
+          <div class="ncf-name">Všechny checkpointy splněny!</div>
+          <div class="ncf-km">Dokončení jízdy</div>
+        </div>
+        ${rs.running ? `<button class="ncf-fin-btn" onclick="finishRide()">CÍLEM!<br>🏁</button>` : ''}
+      </div>`;
+    } else if (nextCp) {
+      // Compare with PB split at this CP
+      const pbCp = pb?.checkpoints?.[nextIdx];
+      const pbSplitText = pbCp?.splitMs ? ` · PB: ${fmtTime(pbCp.splitMs)}` : '';
+      html += `<div class="next-cp-focus">
+        <div class="ncf-num">${nextIdx + 1}</div>
+        <div class="ncf-body">
+          <div class="ncf-name">${nextCp.name || 'Checkpoint ' + (nextIdx + 1)}</div>
+          <div class="ncf-km">📏 ${nextCp.km.toFixed(2)} km${pbSplitText}</div>
+          ${remaining > 1 ? `<div class="ncf-remaining">Zbývá: ${remaining} CP</div>` : ''}
+        </div>
+        ${rs.running ? `<button class="ncf-tap" onclick="hitCP(${nextIdx})">TAP<br>✓</button>` : ''}
+      </div>`;
     }
-    const tap = (isNext && rs.running && !rs.finished)
-      ? `<button class="tap-btn" onclick="hitCP(${i})">TAP ✓</button>` : '';
-    return `<div class="cp-row ${cls}">
-      <div class="cp-circ">${done?'✓':i+1}</div>
-      <div class="cp-info">
-        <div class="cp-iname">${cp.name||'CP '+(i+1)}</div>
-        <div class="cp-idist">${cp.km.toFixed(2)} km</div>
-      </div>
-      <div class="cp-times">
-        ${done ? `<div class="cp-t">${fmtTime(cp.hitTime)}</div>` : ''}
-        ${done && cp.splitMs ? `<div class="cp-split">split: ${fmtTime(cp.splitMs)}</div>` : ''}
-        ${gDiff}
-      </div>
-      ${tap}
-    </div>`;
-  }).join('');
-  if (rs.cpIdx >= cps.length && rs.running && !rs.finished) {
-    el.innerHTML += `<button class="btn btn-green btn-block btn-lg" style="margin-top:10px;" onclick="finishRide()">🏁 CÍLEM!</button>`;
   }
+
+  // ── Past CPs (compact history) ──────────────────
+  if (doneCps.length > 0) {
+    html += `<div style="padding:4px 0 2px;font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--text3);margin-bottom:4px;">Splněné checkpointy</div>`;
+    // Show in reverse order (most recent first)
+    [...cps].reverse().forEach((cp, revI) => {
+      const i = cps.length - 1 - revI;
+      if (cp.hitTime === null) return;
+      const pbCp = pb?.checkpoints?.[i];
+      let diffHtml = '';
+      if (pbCp?.hitTime != null) {
+        const d = cp.hitTime - pbCp.hitTime;
+        diffHtml = `<span style="font-size:10px;${d<=0?'color:var(--green)':'color:var(--red)'}">${d<=0?'▲':('▼+'+fmtTime(Math.abs(d)))}</span>`;
+      }
+      html += `<div class="cp-history-row">
+        <div class="cp-hist-check">✓</div>
+        <div class="cp-hist-name">${cp.name || 'CP '+(i+1)} <span style="font-size:10px;color:var(--text3)">${cp.km.toFixed(1)}km</span></div>
+        <span class="cp-hist-time">${fmtTime(cp.hitTime)}</span>
+        ${cp.splitMs ? `<span class="cp-hist-split">+${fmtTime(cp.splitMs)}</span>` : ''}
+        ${diffHtml}
+      </div>`;
+    });
+  }
+
+  el.innerHTML = html;
 }
 
 // ── SAVE & RESULTS ────────────────────────────────
