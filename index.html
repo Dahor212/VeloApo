@@ -72,7 +72,8 @@ body {
   background-size: cover;
   background-position: center;
   z-index: -2;
-  transition: background-image .5s ease, opacity .3s;
+  /* no transition on background-image — prevents black flash while new image loads */
+  transition: opacity .3s;
 }
 #app-bg::after {
   content:''; position:fixed; inset:0; z-index:-1;
@@ -1225,37 +1226,48 @@ body {
 }
 
 /* ── Card flip (route card) ─────────────── */
+/* iOS-safe flip: no preserve-3d/backface-visibility — uses scaleX(-1) counter-mirror */
 .route-card-wrap {
   perspective: 1000px;
   -webkit-perspective: 1000px;
 }
 .route-card-inner {
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-              -webkit-transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  /* intentionally NO transform-style:preserve-3d — breaks iOS Safari */
   position: relative;
+  transition: transform 0.44s cubic-bezier(0.4, 0, 0.2, 1),
+              -webkit-transform 0.44s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .route-card-wrap.flipped .route-card-inner {
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);
 }
+/* Front: visible by default, fades out exactly at mid-flip (0.22 s) */
 .route-card-front {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
   position: relative;
+  transition: opacity 0s linear 0s;
 }
+.route-card-wrap.flipped .route-card-front {
+  opacity: 0;
+  transition: opacity 0s linear 0.22s;
+}
+/* Back: scaleX(-1) cancels parent's mirror → text always readable */
 .route-card-back {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
   position: absolute; inset: 0;
-  transform: rotateY(180deg);
-  -webkit-transform: rotateY(180deg);
+  transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0s linear 0s;
   background: rgba(20,22,40,0.96);
   border-radius: var(--r-lg);
   padding: 14px;
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
   border: 1px solid var(--glass-border);
+}
+.route-card-wrap.flipped .route-card-back {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0s linear 0.22s;
 }
 .card-back-stat {
   display: flex; justify-content: space-between; align-items: center;
@@ -2878,6 +2890,10 @@ body.light-mode .monthly-goal-input-row input { color: var(--text); }
         <div><div class="settings-lbl">Importovat data</div><div class="settings-sub">Obnovit z JSON zálohy</div></div>
         <button class="btn btn-glass btn-sm" onclick="document.getElementById('import-all-file').click()">📂 Import</button>
         <input type="file" id="import-all-file" accept=".json" style="display:none" onchange="importAllData(this)">
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-lbl" style="color:var(--red)">⚠️ Smazat všechna data</div><div class="settings-sub">Nevratné — vymaže trasy, záznamy, nastavení</div></div>
+        <button class="btn btn-sm" style="background:rgba(255,85,102,0.15);border:1px solid rgba(255,85,102,0.35);color:var(--red)" onclick="clearAllAppData()">🗑 Reset</button>
       </div>
     </div>
 

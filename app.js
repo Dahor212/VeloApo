@@ -3131,6 +3131,13 @@ function toggleSetting(key) {
   renderSettings();
 }
 
+function clearAllAppData() {
+  if (!confirm('⚠️ Opravdu smazat VŠECHNA data?\n\nVymaže se: trasy, záznamy, achievementy, nastavení, kola.\n\nTato akce je NEVRATNÁ.')) return;
+  localStorage.clear();
+  toast('🗑 Data smazána, restartuji…');
+  setTimeout(() => location.reload(), 800);
+}
+
 function setTheme(color) {
   appSettings.themeColor = color;
   saveSettings();
