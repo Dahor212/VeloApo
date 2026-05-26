@@ -741,7 +741,8 @@ function startRide() {
   resetStatCards();
   renderRideCPs();
   renderTVBoard();
-  setTimeout(()=>drawElevation(r,'ride-elev',90,true), 30);
+  updateCPCtrlButton();
+  setTimeout(()=>drawElevation(r,'ride-elev',80,true), 30);
   // Set ghost PB
   const recs = routes[viewIdx]?.records;
   if (recs?.length > 0) {
@@ -749,15 +750,18 @@ function startRide() {
   } else {
     ghostPbMs = 0;
   }
-  // Init flip clock
+  // Flip clock disabled (removed from UI — single timer display only)
   _flipDigits = {};
-  initFlipClock('flip-clock-wrap');
-  const fcWrap = document.getElementById('flip-clock-wrap');
-  if (fcWrap) fcWrap.style.display = 'block';
 
   // Feature E: reset motivational messages state
   _motiLastState = null;
   _motiLastPct = 0;
+
+  // Reset CP control button
+  const cpBtn = document.getElementById('btn-cp-tap');
+  if (cpBtn) { cpBtn.style.display = 'none'; }
+  const btnRst = document.getElementById('btn-rst');
+  if (btnRst) { btnRst.style.display = 'none'; }
 
   // Feature H: clear tints on ride start
   const screenRide = document.getElementById('screen-ride');
@@ -776,14 +780,15 @@ function startRide() {
 }
 
 function resetStatCards() {
-  document.getElementById('s-time').textContent = '0:00';
-  document.getElementById('s-pct').textContent  = '0%';
-  document.getElementById('s-pace').textContent = '—';
-  document.getElementById('s-eta').textContent  = '—';
-  document.getElementById('s-pb').textContent   = '—';
-  document.getElementById('s-pos').textContent  = '#—';
-  document.getElementById('s-pos-of').textContent = `z ${(routes[viewIdx]?.records?.length||0)+1}`;
-  document.getElementById('s-km').textContent   = `0 / ${(routes[viewIdx]?.totalDist||0).toFixed(1)} km`;
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('s-time', '0:00');
+  set('s-pct',  '0%');
+  set('s-pace', '—');
+  set('s-eta',  '—');
+  set('s-pb',   '—');
+  set('s-pos',  '#—');
+  set('s-pos-of', `z ${(routes[viewIdx]?.records?.length||0)+1}`);
+  set('s-km',   `0 / ${(routes[viewIdx]?.totalDist||0).toFixed(1)} km`);
 }
 
 function toggleTimer() {
@@ -797,6 +802,7 @@ function toggleTimer() {
     document.getElementById('timer-main').classList.remove('paused');
     document.getElementById('timer-main').classList.add('running');
     renderRideCPs();
+    updateCPCtrlButton();
     tick();
   } else {
     rs.elapsed = performance.now() - rs.startTs;
@@ -809,6 +815,7 @@ function toggleTimer() {
     document.getElementById('timer-main').classList.remove('running');
     document.getElementById('btn-rst').style.display = '';
     renderRideCPs();
+    updateCPCtrlButton();
   }
 }
 
@@ -827,9 +834,7 @@ function updateRideUI() {
   const cs = String(Math.floor((ms%1000)/10)).padStart(2,'0');
   document.getElementById('timer-main').innerHTML =
     `${m}:${String(s).padStart(2,'0')}<span class="timer-ms" id="timer-ms">.${cs}</span>`;
-  updateFlipClock(ms);
   updateGhostBar(ms);
-  document.getElementById('s-time').textContent = fmtTime(ms);
 
   const r = routes[viewIdx];
   const lastHit = [...rs.cps].reverse().find(c=>c.hitTime!==null);
@@ -1091,10 +1096,18 @@ function renderTVBoard() {
   const leader  = ranked[0];
   const isLeading = leader?.isMe;
 
-  // Update position card
+  // Update position card (hidden element kept for JS compat)
   const myPos = ranked.findIndex(e => e.isMe) + 1;
-  document.getElementById('s-pos').textContent  = '#' + myPos;
-  document.getElementById('s-pos-of').textContent = `z ${ranked.length}`;
+  const sPosEl = document.getElementById('s-pos');
+  const sPosOfEl = document.getElementById('s-pos-of');
+  if (sPosEl) sPosEl.textContent  = '#' + myPos;
+  if (sPosOfEl) sPosOfEl.textContent = `z ${ranked.length}`;
+
+  // ── Mobile: limit to 5 rows centered on "me" (2 above, me, 2 below) ──
+  const myIdx = ranked.findIndex(e => e.isMe);
+  const start = Math.max(0, myIdx - 2);
+  const end   = Math.min(ranked.length, myIdx + 3);
+  const displayed = ranked.slice(start, end);
 
   const container = document.getElementById('tv-rows');
 
@@ -1102,7 +1115,7 @@ function renderTVBoard() {
   if (container.querySelector('.tv-empty')) container.innerHTML = '';
 
   // Set container height for absolute children
-  container.style.height = (ranked.length * TV_ROW_H) + 'px';
+  container.style.height = (displayed.length * TV_ROW_H) + 'px';
 
   // Collect existing DOM rows keyed by data-key
   const existing = {};
@@ -1110,8 +1123,10 @@ function renderTVBoard() {
     existing[el.dataset.key] = el;
   });
 
-  ranked.forEach((entry, i) => {
+  displayed.forEach((entry, i) => {
     const newTop = i * TV_ROW_H;
+    // Global rank position in full ranked list
+    const globalRank = ranked.indexOf(entry);
 
     // Build diff HTML for this entry vs others
     let diffHTML;
@@ -1135,11 +1150,11 @@ function renderTVBoard() {
       }
     }
 
-    const posCls  = i===0?'p1':i===1?'p2':i===2?'p3':'';
+    const posCls  = globalRank===0?'p1':globalRank===1?'p2':globalRank===2?'p3':'';
     const meCls   = entry.isMe ? (isLeading ? 'me leading' : 'me') : '';
     const refText = entry.refTime != null ? fmtTime(entry.refTime) : '—';
     const innerHTML = `
-      <div class="tv-pos ${posCls}">${i+1}</div>
+      <div class="tv-pos ${posCls}">${globalRank+1}</div>
       <div>
         <div class="tv-name">${entry.name}</div>
         <div class="tv-name-sub">${entry.sub}</div>
@@ -1149,7 +1164,6 @@ function renderTVBoard() {
 
     let row = existing[entry.key];
     if (!row) {
-      // New row: create, position at target, fade in
       row = document.createElement('div');
       row.dataset.key = entry.key;
       row.className = 'tv-row ' + meCls;
@@ -1157,22 +1171,18 @@ function renderTVBoard() {
       row.style.opacity = '0';
       row.innerHTML = innerHTML;
       container.appendChild(row);
-      // Fade in next frame
       requestAnimationFrame(() => { row.style.opacity = '1'; });
     } else {
-      // Existing row: check if position changed
       const oldTop = parseInt(row.style.top, 10) || 0;
       if (oldTop !== newTop) {
-        // Flash animation on "me" row, subtle on others
         if (entry.isMe) {
           row.classList.remove('flash-up','flash-down');
-          void row.offsetWidth; // reflow to restart animation
+          void row.offsetWidth;
           row.classList.add(newTop < oldTop ? 'flash-up' : 'flash-down');
           setTimeout(() => row.classList.remove('flash-up','flash-down'), 900);
         }
         row.style.top = newTop + 'px';
       }
-      // Update class and content
       row.className = 'tv-row ' + meCls;
       row.innerHTML = innerHTML;
     }
@@ -1184,6 +1194,31 @@ function renderTVBoard() {
     el.style.opacity = '0';
     setTimeout(() => { if (el.parentNode) el.remove(); }, 380);
   });
+}
+
+// ── TAP NEXT CP (from control bar) ────────────────
+function tapNextCP() {
+  if (!rs.running || rs.finished) return;
+  if (rs.cpIdx < rs.cps.length) hitCP(rs.cpIdx);
+}
+
+function updateCPCtrlButton() {
+  const btn = document.getElementById('btn-cp-tap');
+  const nameEl = document.getElementById('btn-cp-name');
+  if (!btn) return;
+  const nextCp = rs.cps[rs.cpIdx];
+  const showTap = rs.running && !rs.finished && nextCp;
+  btn.style.display = showTap ? '' : 'none';
+  if (nameEl && nextCp) nameEl.textContent = nextCp.name || ('CP '+(rs.cpIdx+1));
+  // When all CPs done but not finished: show CÍLEM instead
+  if (rs.running && !rs.finished && !nextCp && rs.cps.length > 0) {
+    btn.style.display = '';
+    btn.textContent = '🏁';
+    btn.onclick = finishRide;
+  } else if (showTap) {
+    btn.onclick = tapNextCP;
+    btn.innerHTML = `TAP ✓<br><span id="btn-cp-name" style="font-size:10px;opacity:0.8;font-weight:600;">${nextCp.name||'CP '+(rs.cpIdx+1)}</span>`;
+  }
 }
 
 // ── HIT CHECKPOINT ────────────────────────────────
@@ -1238,6 +1273,7 @@ function hitCP(idx) {
 
   renderRideCPs();
   renderTVBoard();
+  updateCPCtrlButton();
 }
 
 function finishRide() {
@@ -2399,11 +2435,11 @@ function updateGhostBar(elapsedMs) {
   if (!bar || !deltaEl || ghostPbMs <= 0) { if(bar) bar.style.display='none'; return; }
   bar.style.display = 'flex';
   const pbTimeEl = document.getElementById('ghost-pb-time');
-  if (pbTimeEl) pbTimeEl.textContent = fmtTime(ghostPbMs);
+  if (pbTimeEl) pbTimeEl.textContent = 'PB ' + fmtTime(ghostPbMs);
   const delta = elapsedMs - ghostPbMs;
   const sign = delta > 0 ? '+' : '';
   deltaEl.textContent = sign + fmtTime(Math.abs(delta));
-  deltaEl.className = 'ghost-delta ' + (delta > 0 ? 'behind' : 'ahead');
+  deltaEl.className = 'ride-meta-val ' + (delta > 0 ? 'behind' : 'ahead');
 }
 
 // ── Tablet sidebar update ─────────────────────────
@@ -3797,12 +3833,12 @@ function updatePBPrediction(elapsedMs) {
 
   const projectedMs = elapsedMs / progressFrac;
   bar.style.display = 'flex';
-  valEl.textContent = fmtTime(Math.round(projectedMs));
+  valEl.textContent = '⏱ ' + fmtTime(Math.round(projectedMs));
 
   const delta = projectedMs - ghostPbMs;
   const sign = delta > 0 ? '+' : '';
   deltaEl.textContent = `${sign}${fmtTime(Math.abs(Math.round(delta)))}`;
-  deltaEl.style.color = delta < 0 ? '#4CAF50' : '#FF5566';
+  deltaEl.className = 'ride-meta-val ' + (delta < 0 ? 'ahead' : 'behind');
 }
 
 // ════════════════════════════════════════════════
@@ -3883,6 +3919,11 @@ renderSplash();
 updateBackground();
 applySettings();
 checkStravaOnStart();
+
+// Preload all wallpapers so background switches are instant (no black flash)
+(function preloadWallpapers() {
+  WALLPAPERS.forEach(w => { const img = new Image(); img.src = w.file; });
+})();
 
 // Check for autosave from interrupted ride
 (function checkAutosave() {

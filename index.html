@@ -645,30 +645,36 @@ body {
 .status-dot.pause { background: var(--yellow); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-/* TIMER */
+/* TIMER — transparent so wallpaper shows through */
 .timer-block {
-  padding: 22px 16px 10px; text-align: center; position: relative;
-}
-.timer-block::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at center top, rgba(77,159,255,0.09) 0%, transparent 70%);
-  pointer-events: none;
+  padding: 18px 16px 6px; text-align: center; position: relative;
+  /* NO background — wallpaper visible */
 }
 .timer-main {
-  font-family: var(--mono); font-size: 68px; font-weight: 700; line-height: 1;
-  letter-spacing: 2px; color: var(--text);
-  text-shadow: 0 2px 16px rgba(77,159,255,0.3);
+  font-family: var(--mono); font-size: 72px; font-weight: 700; line-height: 1;
+  letter-spacing: 2px; color: #fff;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 30px rgba(77,159,255,0.4);
   transition: color .3s, text-shadow .3s;
 }
-.timer-main.paused { color: var(--yellow); text-shadow: 0 2px 16px rgba(255,200,87,0.4); }
+.timer-ms { font-size: 32px; opacity: 0.7; }
+.timer-main.paused { color: var(--yellow); text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 20px rgba(255,200,87,0.5); }
 .timer-main.running {
   animation: timerPulse 2.2s ease-in-out infinite;
 }
 @keyframes timerPulse {
-  0%,100% { text-shadow: 0 2px 16px rgba(77,159,255,0.3); }
-  50%     { text-shadow: 0 2px 30px rgba(77,159,255,0.60); }
+  0%,100% { text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 30px rgba(77,159,255,0.4); }
+  50%     { text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 50px rgba(77,159,255,0.7); }
 }
+/* Ghost + PB compact row */
+.ride-meta-row {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 4px 16px 10px; font-size: 13px; font-family: var(--mono);
+  flex-wrap: wrap;
+}
+.ride-meta-item { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+.ride-meta-val  { font-weight: 700; }
+.ride-meta-val.ahead  { color: var(--green); }
+.ride-meta-val.behind { color: var(--red); }
 /* CP checkpoint hit animation */
 @keyframes cpPulse {
   0%   { transform: scale(1);    color: var(--text);  text-shadow: 0 2px 16px rgba(77,159,255,0.3); }
@@ -923,13 +929,26 @@ body {
 }
 
 /* CONTROLS */
+/* CP tap button in control bar */
+.ctrl-cp {
+  flex: 1.4; padding: 14px 8px; font-size: 14px; font-weight: 900;
+  border-radius: var(--r-lg); background: var(--green); color: #0a0e1a;
+  border: none; cursor: pointer; font-family: var(--mono);
+  letter-spacing: 0.5px; text-align: center;
+  box-shadow: 0 4px 16px rgba(61,220,132,0.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.1s, background 0.1s;
+  line-height: 1.2;
+}
+.ctrl-cp:active { transform: scale(0.94); background: #2ecc71; }
 .ride-ctrl {
-  padding: 12px 16px calc(12px + var(--safe-bot));
-  background: linear-gradient(0deg, rgba(10,14,26,0.95), rgba(10,14,26,0.7));
+  padding: 10px 16px calc(10px + var(--safe-bot));
+  background: linear-gradient(0deg, rgba(10,14,26,0.96), rgba(10,14,26,0.72));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--glass-border);
-  display: flex; gap: 10px;
+  display: flex; gap: 8px;
   position: sticky; bottom: 0; z-index: 100;
 }
 .ctrl-main { flex: 2; padding: 17px; font-size: 16px; font-weight: 800; letter-spacing: 1px; border-radius: var(--r-lg); }
@@ -1315,13 +1334,13 @@ body {
 }
 
 /* ── Card flip (route card) ─────────────── */
-/* iOS-safe flip: no preserve-3d/backface-visibility — uses scaleX(-1) counter-mirror */
+/* iOS-safe: scaleX(-1) on back face counters parent's rotateY mirror.
+   Both faces use 0.22s delay (half of 0.44s animation) in BOTH directions. */
 .route-card-wrap {
   perspective: 1000px;
   -webkit-perspective: 1000px;
 }
 .route-card-inner {
-  /* intentionally NO transform-style:preserve-3d — breaks iOS Safari */
   position: relative;
   transition: transform 0.44s cubic-bezier(0.4, 0, 0.2, 1),
               -webkit-transform 0.44s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1330,23 +1349,23 @@ body {
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);
 }
-/* Front: visible by default, fades out exactly at mid-flip (0.22 s) */
+/* Front — delay in BOTH directions so visibility switches at mid-flip */
 .route-card-front {
   position: relative;
-  transition: opacity 0s linear 0s;
+  transition: opacity 0s linear 0.22s; /* revert-to-visible delay */
 }
 .route-card-wrap.flipped .route-card-front {
   opacity: 0;
-  transition: opacity 0s linear 0.22s;
+  transition: opacity 0s linear 0.22s; /* go-to-hidden delay */
 }
-/* Back: scaleX(-1) cancels parent's mirror → text always readable */
+/* Back — scaleX(-1) counters parent mirror, delay in both directions */
 .route-card-back {
   position: absolute; inset: 0;
   transform: scaleX(-1);
   -webkit-transform: scaleX(-1);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0s linear 0s;
+  transition: opacity 0s linear 0.22s; /* revert-to-hidden delay */
   background: rgba(20,22,40,0.96);
   border-radius: var(--r-lg);
   padding: 14px;
@@ -1356,7 +1375,7 @@ body {
 .route-card-wrap.flipped .route-card-back {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 0s linear 0.22s;
+  transition: opacity 0s linear 0.22s; /* go-to-visible delay */
 }
 .card-back-stat {
   display: flex; justify-content: space-between; align-items: center;
@@ -2505,129 +2524,116 @@ body.light-mode .monthly-goal-input-row input { color: var(--text); }
     </div>
   </div>
 
+  <!-- Single-column layout optimized for iPhone 11 (375×812pt) -->
   <div class="scroll" id="ride-race-layout">
-    <div class="race-left">
-      <div class="timer-block" style="width:100%">
-        <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
-        <div id="flip-clock-wrap" style="margin-top:6px;display:none;"></div>
-      </div>
 
-      <!-- Feature C: Pacing zone indicator -->
-      <div class="pacing-zone-wrap" id="pacing-zone-wrap" style="display:none;width:100%">
-        <div class="pacing-zone-track">
-          <div class="pacing-zone-cursor" id="pacing-cursor" style="left:50%"></div>
-        </div>
-        <div class="pacing-zone-labels">
-          <span>Pomalý</span>
-          <span id="pacing-label">— min/km</span>
-          <span>Rychlý</span>
-        </div>
-      </div>
+    <!-- 1. TIMER — big, transparent, wallpaper shows through -->
+    <div class="timer-block">
+      <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
+    </div>
 
-      <div class="ghost-bar" id="ghost-bar" style="display:none;margin:0 16px;">
-        <span>👻 PB</span>
-        <span id="ghost-pb-time" style="font-family:var(--mono);color:var(--text2);font-size:12px">—</span>
-        <span style="flex:1"></span>
-        <span class="ghost-delta" id="ghost-delta">—</span>
+    <!-- 2. Meta row: ghost PB + pacing — compact single row -->
+    <div class="ride-meta-row" id="ride-meta-row">
+      <div class="ride-meta-item" id="ghost-bar" style="display:none;">
+        <span>👻</span>
+        <span id="ghost-pb-time" style="color:var(--text2);font-size:11px">—</span>
+        <span class="ride-meta-val" id="ghost-delta">—</span>
       </div>
-
-      <div class="pb-predict-bar" id="pb-predict-bar" style="display:none">
-        <div>
-          <div class="pb-predict-lbl">⏱ Odhadovaný cílový čas</div>
-          <div class="pb-predict-val" id="pb-predict-val">—</div>
-        </div>
-        <div style="text-align:right">
-          <div class="pb-predict-lbl">vs PB</div>
-          <div class="pb-predict-delta" id="pb-predict-delta">—</div>
-        </div>
+      <div class="ride-meta-item" id="pb-predict-bar" style="display:none;">
+        <span style="font-size:11px;color:var(--text2);">⏱ Cíl</span>
+        <span class="ride-meta-val" id="pb-predict-val">—</span>
+        <span class="ride-meta-val" id="pb-predict-delta" style="font-size:11px">—</span>
       </div>
+    </div>
 
-      <div class="stats-grid" style="width:100%">
-        <div class="scard">
-          <div class="scard-lbl">⏱ Čas</div>
-          <div class="scard-val" id="s-time">0:00</div>
-          <div class="scard-unit">mm:ss</div>
-        </div>
-        <div class="scard">
-          <div class="scard-lbl">📍 Pozice</div>
-          <div class="scard-val" id="s-pos" style="color:var(--gold);">#—</div>
-          <div class="scard-unit" id="s-pos-of">z 0</div>
-        </div>
-        <div class="scard">
-          <div class="scard-lbl">🎯 Průběh</div>
-          <div class="scard-val" id="s-pct">0%</div>
-          <div class="scard-unit" id="s-km">0 / 0 km</div>
-        </div>
-        <div class="scard">
-          <div class="scard-lbl">⚡ Tempo</div>
-          <div class="scard-val" id="s-pace">—</div>
-          <div class="scard-unit">min/km</div>
-        </div>
-        <div class="scard">
-          <div class="scard-lbl">⏳ Do cíle</div>
-          <div class="scard-val" id="s-eta">—</div>
-          <div class="scard-unit">odhadem</div>
-        </div>
-        <div class="scard">
-          <div class="scard-lbl">🏆 vs PB</div>
-          <div class="scard-val" id="s-pb" style="font-size:16px;">—</div>
-          <div class="scard-unit">rozdíl</div>
-        </div>
+    <!-- 3. LIVE LEADERBOARD — compact, max 5 rows (2 above me, me, 2 below) -->
+    <div class="tv-board" id="tv-board" style="margin:0 16px 10px;">
+      <div class="tv-hdr">
+        <div class="tv-hdr-l"><span class="tv-live-dot"></span>LIVE žebříček</div>
+        <div class="tv-hdr-r" id="tv-cp-info"><span class="tv-hdr-cp">START</span></div>
       </div>
+      <div class="tv-rows" id="tv-rows" style="min-height:0;"></div>
+    </div>
 
-      <div class="prog-section" style="width:100%">
-        <div class="prog-labels">
-          <span>Start</span>
-          <span id="prog-lbl">0 / 0 km</span>
-          <span>Cíl 🏁</span>
+    <!-- 4. PROGRESS BAR + next CP info bar -->
+    <div class="prog-section">
+      <div class="prog-labels">
+        <span>Start</span>
+        <span id="prog-lbl">0 / 0 km</span>
+        <span>Cíl 🏁</span>
+      </div>
+      <div class="prog-bar" id="prog-wrap" style="position:relative;">
+        <div class="prog-fill" id="prog-fill" style="width:0%"><div class="prog-dot"></div></div>
+        <div id="prog-markers"></div>
+        <div class="ghost-dot" id="ghost-dot" style="display:none;left:0%">
+          <div class="prog-label-ghost">👻</div>
         </div>
-        <!-- Feature A: Ghost racer on progress bar -->
-        <div class="prog-bar" id="prog-wrap" style="position:relative;">
-          <div class="prog-fill" id="prog-fill" style="width:0%"><div class="prog-dot"></div></div>
-          <div id="prog-markers"></div>
-          <div class="ghost-dot" id="ghost-dot" style="display:none;left:0%">
-            <div class="prog-label-ghost">👻</div>
-          </div>
-          <div class="my-dot" id="my-dot" style="display:none;left:0%"></div>
-        </div>
+        <div class="my-dot" id="my-dot" style="display:none;left:0%"></div>
       </div>
-
-      <!-- Feature D: Next CP countdown bar -->
-      <div class="next-cp-bar" id="next-cp-bar" style="display:none;width:100%">
-        <div>
-          <div class="next-cp-name" id="next-cp-name">→ CP 1</div>
-          <div class="next-cp-dist" id="next-cp-dist">— km</div>
-        </div>
-        <div class="next-cp-eta" id="next-cp-eta">—</div>
+    </div>
+    <!-- Feature D: Next CP distance bar (below progress) -->
+    <div class="next-cp-bar" id="next-cp-bar" style="display:none;">
+      <div>
+        <div class="next-cp-name" id="next-cp-name">→ CP 1</div>
+        <div class="next-cp-dist" id="next-cp-dist">— km</div>
       </div>
-    </div><!-- end .race-left -->
+      <div class="next-cp-eta" id="next-cp-eta">—</div>
+    </div>
 
-    <div class="race-right">
-      <!-- TV BOARD -->
-      <div class="tv-board" id="tv-board">
-        <div class="tv-hdr">
-          <div class="tv-hdr-l"><span class="tv-live-dot"></span>LIVE žebříček</div>
-          <div class="tv-hdr-r" id="tv-cp-info"><span class="tv-hdr-cp">START</span></div>
-        </div>
-        <div class="tv-rows" id="tv-rows"></div>
+    <!-- 5. ELEVATION PROFILE -->
+    <div class="elev-ride">
+      <canvas id="ride-elev" height="80" style="width:100%;display:block;"></canvas>
+    </div>
+
+    <!-- 6. CP SECTION — next CP card + compact history -->
+    <div class="cps-section">
+      <div id="ride-cps"></div>
+    </div>
+
+    <!-- 7. STATS GRID — 4 essential cards (2×2) -->
+    <div class="stats-grid" style="grid-template-columns:1fr 1fr;padding:0 16px 10px;">
+      <div class="scard">
+        <div class="scard-lbl">🎯 Průběh</div>
+        <div class="scard-val" id="s-pct">0%</div>
+        <div class="scard-unit" id="s-km">0 / 0 km</div>
       </div>
-
-      <div class="elev-ride">
-        <canvas id="ride-elev" height="90" style="width:100%;display:block;"></canvas>
+      <div class="scard">
+        <div class="scard-lbl">⚡ Tempo</div>
+        <div class="scard-val" id="s-pace">—</div>
+        <div class="scard-unit">min/km</div>
       </div>
-
-      <div class="cps-section">
-        <div id="ride-cps"></div>
+      <div class="scard">
+        <div class="scard-lbl">⏳ Do cíle</div>
+        <div class="scard-val" id="s-eta">—</div>
+        <div class="scard-unit">odhadem</div>
       </div>
+      <div class="scard">
+        <div class="scard-lbl">🏆 vs PB</div>
+        <div class="scard-val" id="s-pb" style="font-size:16px;">—</div>
+        <div class="scard-unit">rozdíl</div>
+      </div>
+    </div>
 
-      <div style="height: 10px;"></div>
-    </div><!-- end .race-right -->
+    <!-- Hidden/legacy elements kept for JS compatibility -->
+    <div style="display:none">
+      <div id="s-time">0:00</div>
+      <div id="s-pos">#—</div>
+      <div id="s-pos-of">z 0</div>
+      <div id="flip-clock-wrap"></div>
+      <div id="pacing-zone-wrap"><div id="pacing-cursor"></div><div id="pacing-label"></div></div>
+      <div id="pb-predict-lbl-el"></div>
+    </div>
+
+    <!-- Feature C: Pacing zone (collapsed, shown only if expanded) -->
+    <div style="height:6px;"></div>
   </div><!-- end #ride-race-layout -->
 
+  <!-- BOTTOM CONTROLS: Stop | [TAP CP] | Start/Pause | Reset -->
   <div class="ride-ctrl">
     <button class="btn btn-red ctrl-side" onclick="confirmAbort()">■ Stop</button>
+    <button class="ctrl-cp" id="btn-cp-tap" style="display:none;" onclick="tapNextCP()">TAP ✓<br><span id="btn-cp-name" style="font-size:10px;opacity:0.8;font-weight:600;"></span></button>
     <button class="btn btn-blue ctrl-main" id="btn-sp" onclick="toggleTimer()">▶ START</button>
-    <button class="btn btn-glass ctrl-side" id="btn-rst" onclick="resetRide()" style="display:none;">↺ Reset</button>
+    <button class="btn btn-glass ctrl-side" id="btn-rst" onclick="resetRide()" style="display:none;">↺</button>
   </div>
 </div>
 
