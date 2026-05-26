@@ -235,6 +235,15 @@ function renderHome() {
   const g = h<5?'Dobrou noc':h<12?'Dobré ráno':h<18?'Dobrý den':'Dobrý večer';
   document.getElementById('home-greet').textContent = g;
 
+  // Date in hero
+  const dateEl = document.getElementById('home-hero-date');
+  if (dateEl) {
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long' });
+    // Capitalize first letter
+    dateEl.textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+  }
+
   // Quick stats
   const stats = computeAggregateStats('all');
   document.getElementById('home-quick').innerHTML = `
@@ -370,14 +379,16 @@ function renderHome() {
             </div>
           </div>
         </div>
-        <div class="route-card-back">
-          <div style="font-size:15px;font-weight:800;margin-bottom:8px;">${r.name}</div>
+        <div class="route-card-back" onclick="toggleCardFlip(${i})">
+          <div class="card-back-close" onclick="event.stopPropagation();toggleCardFlip(${i})">✕</div>
+          <div class="card-back-title">${r.name}</div>
           <div class="card-back-stat"><span class="cbs-label">Počet jízd</span><span class="cbs-val">${totalRides}</span></div>
           <div class="card-back-stat"><span class="cbs-label">Nejlepší čas</span><span class="cbs-val">${pb ? fmtTime(pb.totalMs) : '—'}</span></div>
           <div class="card-back-stat"><span class="cbs-label">Průměr</span><span class="cbs-val">${avgTimeMs > 0 ? fmtTime(avgTimeMs) : '—'}</span></div>
           <div class="card-back-stat"><span class="cbs-label">Vzdálenost</span><span class="cbs-val">${dist} km</span></div>
           <div class="card-back-stat"><span class="cbs-label">Převýšení</span><span class="cbs-val">+${r.totalElev||0} m</span></div>
-          <button class="btn btn-glass btn-sm btn-block" style="margin-top:8px" onclick="toggleCardFlip(${i})">↩ Zpět</button>
+          <div class="card-back-stat"><span class="cbs-label">Checkpointy</span><span class="cbs-val">${(r.checkpoints||[]).length} CP</span></div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text3);text-align:center;">klepni pro otočení zpět</div>
         </div>
       </div>
     </div>`;
