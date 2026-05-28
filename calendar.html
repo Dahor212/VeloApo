@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Domácí Kalendář">
+<meta name="theme-color" content="#0a0e1a">
+<title>Domácí Kalendář</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg2: #131825;
+  --bg3: #1a2030;
+  --bg-glass: rgba(20,28,45,0.55);
+  --bg-glass-2: rgba(20,28,45,0.80);
+  --glass-border: rgba(255,255,255,0.10);
+  --glass-strong: rgba(255,255,255,0.18);
+  --blue: #4d9fff;
+  --blue-glow: rgba(77,159,255,0.4);
+  --cyan: #00d4ff;
+  --green: #3ddc84;
+  --yellow: #ffc857;
+  --orange: #ff7a3d;
+  --red: #ff5566;
+  --purple: #b76cf0;
+  --text: #f0f4f8;
+  --text2: #94a3b8;
+  --text3: #5a6478;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', -apple-system, sans-serif;
+  --safe-top: env(safe-area-inset-top, 44px);
+  --safe-bot: env(safe-area-inset-bottom, 34px);
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior-y: contain; height: 100%; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ BACKGROUND ═══ */
+#app-bg {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #0a0e1a 0%, #0d1428 40%, #101830 100%);
+  z-index: -2;
+}
+#app-bg::after {
+  content: ''; position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(77,159,255,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(183,108,240,0.05) 0%, transparent 50%);
+}
+
+/* ═══ LAYOUT ═══ */
+.app-wrap {
+  display: flex; flex-direction: column;
+  min-height: 100vh; position: relative; z-index: 1;
+}
+
+/* ═══ HEADER ═══ */
+.hdr {
+  position: sticky; top: 0; z-index: 200;
+  padding: calc(var(--safe-top) + 6px) 16px 10px;
+  background: linear-gradient(180deg, rgba(10,14,26,0.92), rgba(10,14,26,0.55));
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-bottom: 1px solid var(--glass-border);
+  display: grid; grid-template-columns: 40px 1fr 40px;
+  align-items: center; gap: 10px;
+}
+.hdr-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; backdrop-filter: blur(10px); color: var(--text);
+  font-size: 18px; user-select: none;
+}
+.hdr-btn:active { background: var(--glass-strong); }
+.hdr-center { text-align: center; }
+.hdr-month { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.hdr-year { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+
+/* ═══ MONTH NAV ═══ */
+.month-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px 6px;
+  background: rgba(10,14,26,0.4);
+  backdrop-filter: blur(10px);
+}
+.mnav-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text); font-size: 16px; user-select: none;
+}
+.mnav-btn:active { background: var(--glass-strong); }
+.mnav-today {
+  padding: 6px 14px; border-radius: 20px;
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text2);
+}
+.mnav-today:active, .mnav-today.active { background: rgba(77,159,255,0.2); color: var(--blue); border-color: rgba(77,159,255,0.4); }
+
+/* ═══ CALENDAR GRID ═══ */
+.cal-wrap { padding: 0 12px 8px; }
+
+.cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.cal-wd {
+  text-align: center; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--text3); padding: 4px 0;
+}
+.cal-wd.weekend { color: rgba(183,108,240,0.7); }
+
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.cal-day {
+  aspect-ratio: 1; border-radius: var(--r-sm);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-start; padding: 5px 2px 3px;
+  cursor: pointer; position: relative; overflow: hidden;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 44px;
+}
+.cal-day:active { background: rgba(255,255,255,0.06); }
+.cal-day.other-month .cal-day-num { opacity: 0.25; }
+.cal-day.other-month { background: transparent; }
+
+.cal-day.today {
+  background: rgba(77,159,255,0.12);
+  border-color: rgba(77,159,255,0.4);
+}
+.cal-day.today .cal-day-num {
+  background: var(--blue);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-day.selected {
+  background: rgba(77,159,255,0.18);
+  border-color: rgba(77,159,255,0.6);
+  box-shadow: 0 0 0 1px rgba(77,159,255,0.3);
+}
+.cal-day.selected.today {
+  background: rgba(77,159,255,0.22);
+}
+.cal-day.weekend .cal-day-num { color: rgba(183,108,240,0.8); }
+.cal-day.today.weekend .cal-day-num { background: var(--purple); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+
+.cal-day-num {
+  font-size: 13px; font-weight: 600; line-height: 22px;
+  width: 22px; height: 22px; text-align: center;
+}
+
+.cal-dots {
+  display: flex; gap: 2px; flex-wrap: wrap;
+  justify-content: center; margin-top: 2px;
+  max-width: 90%;
+}
+.cal-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ═══ STATS BAR ═══ */
+.stats-bar {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; padding: 8px 12px 6px;
+}
+.stat-pill {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 8px 10px;
+  backdrop-filter: blur(10px); text-align: center;
+}
+.stat-val { font-family: var(--mono); font-size: 18px; font-weight: 700; line-height: 1; }
+.stat-lbl { font-size: 10px; color: var(--text2); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ═══ DAY PANEL ═══ */
+.day-panel {
+  flex: 1; padding: 0 12px calc(80px + var(--safe-bot));
+  min-height: 200px;
+}
+.day-panel-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0 8px;
+}
+.day-panel-date {
+  font-size: 15px; font-weight: 700;
+}
+.day-panel-count {
+  font-size: 12px; color: var(--text3); font-family: var(--mono);
+}
+
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+
+.task-item {
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 11px 12px;
+  backdrop-filter: blur(10px);
+  display: flex; align-items: flex-start; gap: 10px;
+  transition: opacity 0.2s;
+}
+.task-item.completed { opacity: 0.5; }
+.task-item.completed .task-title { text-decoration: line-through; }
+
+.task-check {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--glass-strong); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; margin-top: 1px;
+  transition: all 0.2s;
+}
+.task-item.completed .task-check {
+  background: var(--green); border-color: var(--green); color: #0a0e1a;
+}
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.task-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.task-cat {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border-radius: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+}
+.task-time { font-size: 11px; color: var(--text2); font-family: var(--mono); }
+.task-person { font-size: 11px; color: var(--text2); }
+.task-priority { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; }
+.priority-high   { background: rgba(255,85,102,0.2); color: var(--red); }
+.priority-medium { background: rgba(255,200,87,0.2); color: var(--yellow); }
+.priority-low    { background: rgba(61,220,132,0.15); color: var(--green); }
+
+.task-actions { display: flex; gap: 4px; }
+.task-del {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: transparent; border: none; color: var(--text3);
+  font-size: 14px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: color 0.15s, background 0.15s;
+}
+.task-del:active { color: var(--red); background: rgba(255,85,102,0.1); }
+
+.empty-day {
+  text-align: center; padding: 32px 20px; color: var(--text3);
+  font-size: 14px; line-height: 1.7;
+}
+.empty-day-icon { font-size: 40px; margin-bottom: 10px; }
+
+/* ═══ FAB ═══ */
+.fab {
+  position: fixed; right: 20px;
+  bottom: calc(20px + var(--safe-bot));
+  z-index: 300;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 6px 24px rgba(77,159,255,0.5);
+  border: none; color: #fff; font-size: 26px; font-weight: 300;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fab:active { transform: scale(0.93); box-shadow: 0 4px 16px rgba(77,159,255,0.4); }
+
+/* ═══ DRAWER ═══ */
+.drawer-ov {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 400;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+  backdrop-filter: blur(4px);
+}
+.drawer-ov.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 500;
+  width: 280px; max-width: 80vw;
+  background: rgba(15,20,35,0.96);
+  backdrop-filter: blur(30px);
+  border-right: 1px solid var(--glass-border);
+  transform: translateX(-110%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+  padding: calc(var(--safe-top) + 20px) 0 calc(var(--safe-bot) + 20px);
+  display: flex; flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-hdr { padding: 0 20px 20px; border-bottom: 1px solid var(--glass-border); }
+.drawer-logo {
+  font-size: 22px; font-weight: 900; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.drawer-tag { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.drawer-section { padding: 12px 0; border-bottom: 1px solid var(--glass-border); }
+.drawer-section-lbl {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--text3); padding: 0 20px; margin-bottom: 4px;
+}
+.drawer-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 20px; color: var(--text); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: background .15s;
+}
+.drawer-item:active { background: rgba(77,159,255,0.1); }
+.drawer-item .di-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.drawer-item .di-ico { font-size: 18px; width: 22px; text-align: center; }
+.drawer-members { padding: 12px 20px; flex: 1; }
+.members-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+.member-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-glass); border: 1px solid var(--glass-border);
+  border-radius: 20px; padding: 5px 10px; font-size: 13px; margin: 3px;
+  cursor: pointer;
+}
+.member-chip .mc-del { color: var(--text3); font-size: 14px; }
+.add-member-row { display: flex; gap: 8px; margin-top: 8px; }
+.add-member-inp {
+  flex: 1; background: var(--bg-glass-2, rgba(20,28,45,0.8));
+  border: 1px solid var(--glass-border); border-radius: 10px;
+  padding: 8px 12px; color: var(--text); font-size: 14px; outline: none;
+}
+.add-member-inp:focus { border-color: var(--blue); }
+.add-member-btn {
+  background: var(--blue); border: none; border-radius: 10px;
+  color: #fff; font-size: 18px; width: 36px; cursor: pointer; font-weight: 700;
+}
+.drawer-foot { padding: 14px 20px; font-size: 11px; color: var(--text3); font-family: var(--mono); border-top: 1px solid var(--glass-border); }
+
+/* ═══ MODAL ═══ */
+.modal-ov {
+  display: none; position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+  align-items: flex-end; justify-content: center;
+}
+.modal-ov.open { display: flex; }
+.modal-sheet {
+  background: rgba(15,20,35,0.97);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bot));
+  width: 100%; max-width: 540px;
+  backdrop-filter: blur(30px);
+  max-height: 90vh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-drag {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--glass-border); margin: 0 auto 16px;
+}
+.modal-title { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; color: var(--text2); margin-bottom: 7px; display: block; text-transform: uppercase; }
+.form-inp {
+  width: 100%; background: var(--bg-glass);
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  padding: 12px 14px; color: var(--text); font-family: var(--sans);
+  font-size: 16px; outline: none; transition: border-color .2s;
+  -webkit-appearance: none; backdrop-filter: blur(10px);
+}
+.form-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(77,159,255,0.12); }
+.form-inp::placeholder { color: var(--text3); }
+select.form-inp { cursor: pointer; }
+.form-row { display: flex; gap: 10px; }
+.form-row .form-group { flex: 1; }
+
+/* Category picker */
+.cat-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.cat-btn {
+  background: var(--bg-glass); border: 1.5px solid var(--glass-border);
+  border-radius: var(--r-md); padding: 8px 4px; cursor: pointer;
+  text-align: center; transition: all .15s;
+}
+.cat-btn:active, .cat-btn.selected { border-width: 2px; background: rgba(77,159,255,0.1); }
+.cat-btn .cat-ico { font-size: 20px; margin-bottom: 3px; }
+.cat-btn .cat-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text2); }
+.cat-btn.selected .cat-lbl { color: var(--text); }
+
+/* Priority picker */
+.prio-row { display: flex; gap: 8px; }
+.prio-btn {
+  flex: 1; padding: 10px; border-radius: var(--r-md); border: 1.5px solid var(--glass-border);
+  background: var(--bg-glass); cursor: pointer; text-align: center;
+  font-size: 13px; font-weight: 600; transition: all .15s;
+}
+.prio-btn:active { opacity: 0.8; }
+.prio-btn.sel-high   { background: rgba(255,85,102,0.18); border-color: var(--red); color: var(--red); }
+.prio-btn.sel-medium { background: rgba(255,200,87,0.18); border-color: var(--yellow); color: var(--yellow); }
+.prio-btn.sel-low    { background: rgba(61,220,132,0.15); border-color: var(--green); color: var(--green); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 20px; border: none; border-radius: var(--r-md);
+  font-family: var(--sans); font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: transform .1s; user-select: none;
+}
+.btn:active { transform: scale(.97); }
+.btn-blue  { background: var(--blue); color: #fff; box-shadow: 0 6px 20px var(--blue-glow); width: 100%; }
+.btn-glass { background: var(--bg-glass); border: 1px solid var(--glass-border); color: var(--text); width: 100%; }
+
+/* ═══ TOAST ═══ */
+.toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,28,45,0.97); border: 1px solid var(--glass-strong);
+  color: var(--text); padding: 10px 20px; border-radius: 24px;
+  font-size: 13px; font-weight: 600; z-index: 999; pointer-events: none;
+  backdrop-filter: blur(20px); white-space: nowrap;
+  animation: tin .3s ease, tout .3s ease 1.7s forwards;
+}
+@keyframes tin  { from { opacity:0; transform: translateX(-50%) translateY(10px); } }
+@keyframes tout { to   { opacity:0; transform: translateX(-50%) translateY(-10px); } }
+
+/* Filter tabs */
+.filter-bar {
+  display: flex; gap: 6px; padding: 4px 12px 8px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filter-bar::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0; padding: 5px 12px; border-radius: 20px;
+  border: 1px solid var(--glass-border); background: var(--bg-glass);
+  font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text2);
+  white-space: nowrap; transition: all .15s;
+}
+.filter-chip.active { background: rgba(77,159,255,0.15); border-color: rgba(77,159,255,0.5); color: var(--blue); }
+.filter-chip:active { opacity: 0.8; }
+
+/* Divider */
+.divider { height: 1px; background: var(--glass-border); margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<div id="app-bg"></div>
+
+<!-- ═══ DRAWER ═══ -->
+<div class="drawer-ov" id="drawer-ov" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-hdr">
+    <div class="drawer-logo">🏠 Domácí Kalendář</div>
+    <div class="drawer-tag">Správa domácích úkolů</div>
+  </div>
+
+  <div class="drawer-section">
+    <div class="drawer-section-lbl">Kategorie</div>
+    <div id="drawer-cats"></div>
+  </div>
+
+  <div class="drawer-members">
+    <div class="members-lbl">Členové domácnosti</div>
+    <div id="members-list"></div>
+    <div class="add-member-row">
+      <input type="text" class="add-member-inp" id="member-inp" placeholder="Jméno..." maxlength="20" onkeydown="if(event.key==='Enter')addMember()">
+      <button class="add-member-btn" onclick="addMember()">+</button>
+    </div>
+  </div>
+
+  <div class="drawer-foot">Domácí Kalendář v1 · 2026</div>
+</aside>
+
+<!-- ═══ APP ═══ -->
+<div class="app-wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-btn" onclick="openDrawer()">☰</div>
+    <div class="hdr-center">
+      <div class="hdr-month" id="hdr-month">—</div>
+      <div class="hdr-year" id="hdr-year">—</div>
+    </div>
+    <div class="hdr-btn" onclick="openAddModal(null)" title="Přidat úkol">+</div>
+  </div>
+
+  <!-- Month navigation -->
+  <div class="month-nav">
+    <div class="mnav-btn" onclick="prevMonth()">‹</div>
+    <div class="mnav-today" id="today-btn" onclick="goToday()">Dnes</div>
+    <div class="mnav-btn" onclick="nextMonth()">›</div>
+  </div>
+
+  <!-- Calendar -->
+  <div class="cal-wrap">
+    <div class="cal-weekdays">
+      <div class="cal-wd">Po</div>
+      <div class="cal-wd">Út</div>
+      <div class="cal-wd">St</div>
+      <div class="cal-wd">Čt</div>
+      <div class="cal-wd">Pá</div>
+      <div class="cal-wd weekend">So</div>
+      <div class="cal-wd weekend">Ne</div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-pill">
+      <div class="stat-val" id="stat-today" style="color:var(--blue)">0</div>
+      <div class="stat-lbl">Dnes</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-val" id="stat-week" style="color:var(--yellow)">0</div>
+      <div class="stat-lbl">Tento týden</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-val" id="stat-done" style="color:var(--green)">0</div>
+      <div class="stat-lbl">Splněno</div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar" id="filter-bar"></div>
+
+  <!-- Day tasks panel -->
+  <div class="day-panel">
+    <div class="day-panel-hdr">
+      <div class="day-panel-date" id="day-panel-date">—</div>
+      <div class="day-panel-count" id="day-panel-count"></div>
+    </div>
+    <div class="task-list" id="task-list"></div>
+  </div>
+
+</div><!-- app-wrap -->
+
+<!-- FAB -->
+<button class="fab" onclick="openAddModal(null)" title="Přidat úkol">+</button>
+
+<!-- ═══ ADD/EDIT MODAL ═══ -->
+<div class="modal-ov" id="modal-task">
+  <div class="modal-sheet">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="modal-title">Nový úkol</div>
+
+    <div class="form-group">
+      <label class="form-label">Název úkolu *</label>
+      <input type="text" class="form-inp" id="task-title-inp" placeholder="Co je potřeba udělat?">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Kategorie</label>
+      <div class="cat-grid" id="cat-grid"></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Datum *</label>
+        <input type="date" class="form-inp" id="task-date-inp">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Čas</label>
+        <input type="time" class="form-inp" id="task-time-inp">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Přiřadit komu</label>
+      <select class="form-inp" id="task-person-inp">
+        <option value="">— Nikdo konkrétní —</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Priorita</label>
+      <div class="prio-row">
+        <div class="prio-btn" id="prio-high"   onclick="setPrio('high')">🔴 Vysoká</div>
+        <div class="prio-btn" id="prio-medium" onclick="setPrio('medium')">🟡 Střední</div>
+        <div class="prio-btn" id="prio-low"    onclick="setPrio('low')">🟢 Nízká</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Poznámka</label>
+      <input type="text" class="form-inp" id="task-notes-inp" placeholder="Volitelná poznámka...">
+    </div>
+
+    <div class="divider"></div>
+    <button class="btn btn-blue" onclick="saveTask()">💾 Uložit úkol</button>
+    <div style="height:8px;"></div>
+    <button class="btn btn-glass" onclick="closeModal()">Zrušit</button>
+  </div>
+</div>
+
+<!-- ═══ DELETE CONFIRM MODAL ═══ -->
+<div class="modal-ov" id="modal-del">
+  <div class="modal-sheet">
+    <div class="modal-drag"></div>
+    <div class="modal-title">Smazat úkol?</div>
+    <div style="color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:20px;">Tato akce je nevratná.</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-glass" style="flex:1;" onclick="closeDelModal()">Zrušit</button>
+      <button class="btn btn-blue" style="flex:1;background:var(--red);box-shadow:0 6px 20px rgba(255,85,102,0.3);" onclick="confirmDelete()">🗑 Smazat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════
+
+const CATS = [
+  { id: 'cleaning',    label: 'Úklid',    icon: '🧹', color: '#4d9fff' },
+  { id: 'shopping',   label: 'Nákup',    icon: '🛒', color: '#3ddc84' },
+  { id: 'cooking',    label: 'Vaření',   icon: '🍳', color: '#ffc857' },
+  { id: 'maintenance',label: 'Opravy',   icon: '🔧', color: '#ff7a3d' },
+  { id: 'garden',     label: 'Zahrada',  icon: '🌱', color: '#b76cf0' },
+  { id: 'pet',        label: 'Mazlíčci', icon: '🐕', color: '#ff5566' },
+  { id: 'health',     label: 'Zdraví',   icon: '💊', color: '#00d4ff' },
+  { id: 'other',      label: 'Ostatní',  icon: '📦', color: '#94a3b8' }
+];
+
+function catById(id) { return CATS.find(c => c.id === id) || CATS[CATS.length - 1]; }
+
+let tasks   = JSON.parse(localStorage.getItem('dk_tasks')   || '[]');
+let members = JSON.parse(localStorage.getItem('dk_members') || '["Já"]');
+
+let viewYear  = new Date().getFullYear();
+let viewMonth = new Date().getMonth(); // 0-indexed
+let selectedDate = todayStr();
+let activeFilter = 'all';
+let editingId    = null;
+let deletingId   = null;
+let selectedCat  = 'cleaning';
+let selectedPrio = 'medium';
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function save() {
+  localStorage.setItem('dk_tasks',   JSON.stringify(tasks));
+  localStorage.setItem('dk_members', JSON.stringify(members));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// ═══════════════════════════════════════════
+//  CALENDAR RENDER
+// ═══════════════════════════════════════════
+
+const CZ_MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen',
+                   'Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+
+function renderCalendar() {
+  document.getElementById('hdr-month').textContent = CZ_MONTHS[viewMonth];
+  document.getElementById('hdr-year').textContent  = viewYear;
+
+  const todayBtn = document.getElementById('today-btn');
+  const now = new Date();
+  todayBtn.classList.toggle('active', viewYear === now.getFullYear() && viewMonth === now.getMonth());
+
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  // First day of month (0=Sun … 6=Sat → convert to Mon-based)
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const startOffset = (firstDay + 6) % 7; // Mon=0
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const daysInPrev  = new Date(viewYear, viewMonth, 0).getDate();
+
+  const today = todayStr();
+
+  // Task dots map: date → [colors]
+  const dotMap = {};
+  tasks.forEach(t => {
+    if (!dotMap[t.date]) dotMap[t.date] = [];
+    const c = catById(t.category).color;
+    if (!dotMap[t.date].includes(c)) dotMap[t.date].push(c);
+  });
+
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  for (let i = 0; i < totalCells; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+
+    let day, dateStr, isOther = false;
+    if (i < startOffset) {
+      day = daysInPrev - startOffset + i + 1;
+      const m = viewMonth === 0 ? 11 : viewMonth - 1;
+      const y = viewMonth === 0 ? viewYear - 1 : viewYear;
+      dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      isOther = true;
+    } else if (i - startOffset < daysInMonth) {
+      day = i - startOffset + 1;
+      dateStr = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    } else {
+      day = i - startOffset - daysInMonth + 1;
+      const m = viewMonth === 11 ? 0 : viewMonth + 1;
+      const y = viewMonth === 11 ? viewYear + 1 : viewYear;
+      dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      isOther = true;
+    }
+
+    if (isOther) cell.classList.add('other-month');
+    if (dateStr === today) cell.classList.add('today');
+    if (dateStr === selectedDate) cell.classList.add('selected');
+
+    // Weekend: col 6 = Sat (index%7===5), col 7 = Sun (index%7===6)
+    const col = i % 7;
+    if (col === 5 || col === 6) cell.classList.add('weekend');
+
+    const numDiv = document.createElement('div');
+    numDiv.className = 'cal-day-num';
+    numDiv.textContent = day;
+    cell.appendChild(numDiv);
+
+    if (dotMap[dateStr]?.length) {
+      const dots = document.createElement('div');
+      dots.className = 'cal-dots';
+      dotMap[dateStr].slice(0, 4).forEach(color => {
+        const d = document.createElement('div');
+        d.className = 'cal-dot';
+        d.style.background = color;
+        dots.appendChild(d);
+      });
+      cell.appendChild(dots);
+    }
+
+    cell.dataset.date = dateStr;
+    cell.onclick = () => selectDate(dateStr);
+    grid.appendChild(cell);
+  }
+
+  renderStats();
+  renderDayPanel();
+}
+
+function selectDate(dateStr) {
+  selectedDate = dateStr;
+  renderCalendar();
+}
+
+function prevMonth() {
+  if (viewMonth === 0) { viewMonth = 11; viewYear--; }
+  else viewMonth--;
+  renderCalendar();
+}
+function nextMonth() {
+  if (viewMonth === 11) { viewMonth = 0; viewYear++; }
+  else viewMonth++;
+  renderCalendar();
+}
+function goToday() {
+  const now = new Date();
+  viewYear = now.getFullYear();
+  viewMonth = now.getMonth();
+  selectedDate = todayStr();
+  renderCalendar();
+}
+
+// ═══════════════════════════════════════════
+//  STATS BAR
+// ═══════════════════════════════════════════
+
+function renderStats() {
+  const today = todayStr();
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  let todayCount = 0, weekCount = 0, doneCount = 0;
+  tasks.forEach(t => {
+    if (t.date === today) todayCount++;
+    const td = new Date(t.date);
+    if (td >= weekStart && td <= weekEnd) weekCount++;
+    if (t.completed) doneCount++;
+  });
+
+  document.getElementById('stat-today').textContent = todayCount;
+  document.getElementById('stat-week').textContent  = weekCount;
+  document.getElementById('stat-done').textContent  = doneCount;
+}
+
+// ═══════════════════════════════════════════
+//  DAY PANEL
+// ═══════════════════════════════════════════
+
+function renderDayPanel() {
+  const el = document.getElementById('day-panel-date');
+  const d = new Date(selectedDate + 'T00:00:00');
+  const today = todayStr();
+
+  const CZ_DAYS = ['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
+  const CZ_MONTHS_GEN = ['ledna','února','března','dubna','května','června',
+                         'července','srpna','září','října','listopadu','prosince'];
+
+  const label = selectedDate === today
+    ? `Dnes — ${CZ_DAYS[d.getDay()]}, ${d.getDate()}. ${CZ_MONTHS_GEN[d.getMonth()]}`
+    : `${CZ_DAYS[d.getDay()]}, ${d.getDate()}. ${CZ_MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}`;
+  el.textContent = label;
+
+  let dayTasks = tasks.filter(t => t.date === selectedDate);
+  if (activeFilter !== 'all') dayTasks = dayTasks.filter(t => t.category === activeFilter);
+  dayTasks.sort((a,b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const pOrder = { high: 0, medium: 1, low: 2 };
+    if (pOrder[a.priority] !== pOrder[b.priority]) return pOrder[a.priority] - pOrder[b.priority];
+    return (a.time || '99:99').localeCompare(b.time || '99:99');
+  });
+
+  document.getElementById('day-panel-count').textContent =
+    dayTasks.length ? `${dayTasks.length} úkol${dayTasks.length > 4 ? 'ů' : dayTasks.length > 1 ? 'y' : ''}` : '';
+
+  const list = document.getElementById('task-list');
+  if (!dayTasks.length) {
+    list.innerHTML = `<div class="empty-day">
+      <div class="empty-day-icon">✅</div>
+      Žádné úkoly pro tento den.<br>Klepni na <strong>+</strong> a přidej nový.
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = dayTasks.map(t => {
+    const cat = catById(t.category);
+    return `<div class="task-item ${t.completed ? 'completed' : ''}" id="ti-${t.id}">
+      <div class="task-check" onclick="toggleTask('${t.id}')">${t.completed ? '✓' : ''}</div>
+      <div class="task-body">
+        <div class="task-title">${escHtml(t.title)}</div>
+        <div class="task-meta">
+          <div class="task-cat" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label}</div>
+          ${t.time ? `<div class="task-time">${t.time}</div>` : ''}
+          ${t.assignedTo ? `<div class="task-person">👤 ${escHtml(t.assignedTo)}</div>` : ''}
+          <div class="task-priority priority-${t.priority}">${prioLabel(t.priority)}</div>
+        </div>
+        ${t.notes ? `<div style="font-size:12px;color:var(--text2);margin-top:5px;">${escHtml(t.notes)}</div>` : ''}
+      </div>
+      <div class="task-actions">
+        <div class="task-del" onclick="editTask('${t.id}')" title="Upravit">✏️</div>
+        <div class="task-del" onclick="askDelete('${t.id}')" title="Smazat">🗑</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function prioLabel(p) {
+  return p === 'high' ? '⚡ Vysoká' : p === 'medium' ? '○ Střední' : '↓ Nízká';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════
+//  FILTER BAR
+// ═══════════════════════════════════════════
+
+function renderFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  const chips = [{ id: 'all', label: '🔍 Vše' }, ...CATS.map(c => ({ id: c.id, label: `${c.icon} ${c.label}` }))];
+  bar.innerHTML = chips.map(c =>
+    `<div class="filter-chip ${activeFilter === c.id ? 'active' : ''}" onclick="setFilter('${c.id}')">${c.label}</div>`
+  ).join('');
+}
+
+function setFilter(id) {
+  activeFilter = id;
+  renderFilterBar();
+  renderDayPanel();
+}
+
+// ═══════════════════════════════════════════
+//  DRAWER — categories & members
+// ═══════════════════════════════════════════
+
+function renderDrawer() {
+  const catEl = document.getElementById('drawer-cats');
+  catEl.innerHTML = CATS.map(c =>
+    `<div class="drawer-item" onclick="setFilter('${c.id}');closeDrawer()">
+      <div class="di-dot" style="background:${c.color}"></div>
+      <span>${c.icon} ${c.label}</span>
+    </div>`
+  ).join('');
+
+  renderMembersDrawer();
+}
+
+function renderMembersDrawer() {
+  const el = document.getElementById('members-list');
+  el.innerHTML = members.map(m =>
+    `<span class="member-chip" onclick="removeMember('${escHtml(m)}')">
+      👤 ${escHtml(m)} <span class="mc-del">×</span>
+    </span>`
+  ).join('');
+
+  // Sync select in modal
+  const sel = document.getElementById('task-person-inp');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Nikdo konkrétní —</option>' +
+    members.map(m => `<option value="${escHtml(m)}" ${cur===m?'selected':''}>${escHtml(m)}</option>`).join('');
+}
+
+function addMember() {
+  const inp = document.getElementById('member-inp');
+  const name = inp.value.trim();
+  if (!name || members.includes(name)) { inp.value = ''; return; }
+  members.push(name);
+  save();
+  renderMembersDrawer();
+  inp.value = '';
+}
+
+function removeMember(name) {
+  members = members.filter(m => m !== name);
+  save();
+  renderMembersDrawer();
+}
+
+function openDrawer()  { document.getElementById('drawer').classList.add('open'); document.getElementById('drawer-ov').classList.add('open'); }
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawer-ov').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+//  ADD / EDIT MODAL
+// ═══════════════════════════════════════════
+
+function renderCatGrid(selected) {
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = CATS.map(c =>
+    `<div class="cat-btn ${selected===c.id?'selected':''}"
+          style="${selected===c.id?`border-color:${c.color};`:''}"
+          onclick="selectCat('${c.id}')">
+      <div class="cat-ico">${c.icon}</div>
+      <div class="cat-lbl" style="${selected===c.id?`color:${c.color}`:''}">${c.label}</div>
+    </div>`
+  ).join('');
+}
+
+function selectCat(id) {
+  selectedCat = id;
+  renderCatGrid(id);
+}
+
+function setPrio(p) {
+  selectedPrio = p;
+  ['high','medium','low'].forEach(x => {
+    const el = document.getElementById('prio-' + x);
+    el.className = 'prio-btn';
+    if (x === p) el.classList.add('sel-' + p);
+  });
+}
+
+function openAddModal(dateOverride) {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Nový úkol';
+  document.getElementById('task-title-inp').value = '';
+  document.getElementById('task-date-inp').value  = dateOverride || selectedDate;
+  document.getElementById('task-time-inp').value  = '';
+  document.getElementById('task-notes-inp').value = '';
+  document.getElementById('task-person-inp').value = '';
+  selectedCat  = 'cleaning';
+  selectedPrio = 'medium';
+  renderCatGrid(selectedCat);
+  setPrio(selectedPrio);
+  renderMembersDrawer();
+  document.getElementById('modal-task').classList.add('open');
+  setTimeout(() => document.getElementById('task-title-inp').focus(), 100);
+}
+
+function editTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Upravit úkol';
+  document.getElementById('task-title-inp').value  = t.title;
+  document.getElementById('task-date-inp').value   = t.date;
+  document.getElementById('task-time-inp').value   = t.time || '';
+  document.getElementById('task-notes-inp').value  = t.notes || '';
+  selectedCat  = t.category;
+  selectedPrio = t.priority;
+  renderCatGrid(selectedCat);
+  setPrio(selectedPrio);
+  renderMembersDrawer();
+  document.getElementById('task-person-inp').value = t.assignedTo || '';
+  document.getElementById('modal-task').classList.add('open');
+}
+
+function saveTask() {
+  const title = document.getElementById('task-title-inp').value.trim();
+  const date  = document.getElementById('task-date-inp').value;
+  if (!title) { toast('⚠️ Zadej název úkolu'); return; }
+  if (!date)  { toast('⚠️ Vyber datum'); return; }
+
+  const task = {
+    id:         editingId || uid(),
+    title,
+    category:   selectedCat,
+    date,
+    time:       document.getElementById('task-time-inp').value || '',
+    assignedTo: document.getElementById('task-person-inp').value,
+    priority:   selectedPrio,
+    notes:      document.getElementById('task-notes-inp').value.trim(),
+    completed:  editingId ? (tasks.find(t=>t.id===editingId)?.completed || false) : false,
+    createdAt:  editingId ? (tasks.find(t=>t.id===editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+  };
+
+  if (editingId) {
+    tasks = tasks.map(t => t.id === editingId ? task : t);
+    toast('✅ Úkol aktualizován');
+  } else {
+    tasks.unshift(task);
+    selectedDate = date;
+    toast('✅ Úkol přidán');
+  }
+  save();
+  closeModal();
+  renderCalendar();
+  renderFilterBar();
+}
+
+function closeModal() {
+  document.getElementById('modal-task').classList.remove('open');
+  editingId = null;
+}
+
+// ═══════════════════════════════════════════
+//  DELETE
+// ═══════════════════════════════════════════
+
+function askDelete(id) {
+  deletingId = id;
+  document.getElementById('modal-del').classList.add('open');
+}
+function closeDelModal() {
+  document.getElementById('modal-del').classList.remove('open');
+  deletingId = null;
+}
+function confirmDelete() {
+  tasks = tasks.filter(t => t.id !== deletingId);
+  save();
+  closeDelModal();
+  toast('🗑 Úkol smazán');
+  renderCalendar();
+  renderFilterBar();
+}
+
+// ═══════════════════════════════════════════
+//  TOGGLE TASK COMPLETE
+// ═══════════════════════════════════════════
+
+function toggleTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  t.completed = !t.completed;
+  save();
+  renderCalendar();
+  renderDayPanel();
+  renderStats();
+  if (t.completed) toast('✅ Splněno!');
+}
+
+// ═══════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2100);
+}
+
+// ═══════════════════════════════════════════
+//  CLOSE MODALS ON BACKDROP CLICK
+// ═══════════════════════════════════════════
+
+document.getElementById('modal-task').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('modal-del').addEventListener('click', function(e) {
+  if (e.target === this) closeDelModal();
+});
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+
+function init() {
+  renderDrawer();
+  renderFilterBar();
+  renderCalendar();
+
+  // Seed with example tasks if empty
+  if (!tasks.length) {
+    const today = todayStr();
+    const d1 = new Date(); d1.setDate(d1.getDate() + 1);
+    const d2 = new Date(); d2.setDate(d2.getDate() + 3);
+
+    tasks = [
+      { id: uid(), title: 'Vysát obývací pokoj', category: 'cleaning',     date: today, time: '10:00', assignedTo: 'Já', priority: 'medium', notes: '',                   completed: false, createdAt: new Date().toISOString() },
+      { id: uid(), title: 'Nákup na týden',       category: 'shopping',    date: today, time: '16:00', assignedTo: '',    priority: 'high',   notes: 'Mléko, vejce, chléb', completed: false, createdAt: new Date().toISOString() },
+      { id: uid(), title: 'Uvařit večeři',         category: 'cooking',     date: today, time: '18:00', assignedTo: 'Já', priority: 'medium', notes: '',                   completed: true,  createdAt: new Date().toISOString() },
+      { id: uid(), title: 'Opravit kohoutek',      category: 'maintenance', date: d1.toISOString().slice(0,10), time: '', assignedTo: '', priority: 'low',    notes: 'Koupelna', completed: false, createdAt: new Date().toISOString() },
+      { id: uid(), title: 'Zalít kytky',           category: 'garden',      date: d2.toISOString().slice(0,10), time: '09:00', assignedTo: '', priority: 'low',  notes: '',    completed: false, createdAt: new Date().toISOString() },
+    ];
+    save();
+    renderCalendar();
+    renderFilterBar();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
