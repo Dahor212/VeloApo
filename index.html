@@ -680,6 +680,22 @@ body {
   transition: color .3s, text-shadow .3s;
 }
 .timer-ms { font-size: 32px; opacity: 0.7; }
+/* ── Live Delta vs PB ──────────────────── */
+.ride-live-delta {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 0 8px; min-height: 36px;
+}
+.rld-label {
+  font-size: 11px; color: var(--text3); text-transform: uppercase;
+  letter-spacing: 0.9px; font-weight: 600;
+}
+.rld-val {
+  font-family: var(--mono); font-size: 28px; font-weight: 700;
+  letter-spacing: -0.5px; transition: color 0.5s, text-shadow 0.5s;
+}
+.rld-val.ahead  { color: var(--green); text-shadow: 0 0 18px rgba(61,220,132,0.55); }
+.rld-val.behind { color: var(--red);   text-shadow: 0 0 18px rgba(255,85,102,0.50); }
+.rld-val.even   { color: var(--text2); }
 .timer-main.paused { color: var(--yellow); text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 20px rgba(255,200,87,0.5); }
 .timer-main.running {
   animation: timerPulse 2.2s ease-in-out infinite;
@@ -2572,6 +2588,10 @@ body.light-mode .monthly-goal-input-row input { color: var(--text); }
     <!-- 1. TIMER — big, transparent, wallpaper shows through -->
     <div class="timer-block">
       <div class="timer-main" id="timer-main">0:00<span class="timer-ms" id="timer-ms">.00</span></div>
+      <div class="ride-live-delta" id="ride-live-delta" style="display:none;">
+        <span class="rld-label">vs PB</span>
+        <span class="rld-val" id="rld-val">—</span>
+      </div>
     </div>
 
     <!-- 2. Meta row: ghost PB + pacing — compact single row -->

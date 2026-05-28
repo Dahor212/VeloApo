@@ -75,17 +75,56 @@ let stravaCreatorActivity = null;
 
 // ── ACHIEVEMENT DEFINITIONS ────────────────────────
 const ACHIEVEMENT_DEFS = [
-  { id:'first_ride',  icon:'🎉', name:'První jízda',     desc:'Dokonči první jízdu' },
-  { id:'km_100',      icon:'💯', name:'100 km celkem',   desc:'Najeď celkem 100 km' },
-  { id:'km_500',      icon:'🚀', name:'500 km celkem',   desc:'Najeď celkem 500 km' },
-  { id:'km_1000',     icon:'🌍', name:'1000 km!',        desc:'Najeď celkem 1000 km' },
-  { id:'rides_10',    icon:'🔟', name:'10 jízd',         desc:'Absolvuj 10 jízd' },
-  { id:'rides_50',    icon:'⭐', name:'50 jízd',         desc:'Absolvuj 50 jízd' },
-  { id:'pb_new',      icon:'🏆', name:'Nový rekord',     desc:'Překonej osobní rekord' },
-  { id:'streak_4w',   icon:'🔥', name:'4 týdny v řadě',  desc:'Jeď 4 týdny za sebou' },
-  { id:'early_bird',  icon:'🌅', name:'Ranní ptáče',     desc:'Dokonči jízdu před 7:00' },
-  { id:'night_rider', icon:'🌙', name:'Noční jezdec',    desc:'Dokonči jízdu po 22:00' },
-  { id:'routes_5',    icon:'🗺️', name:'5 tras',          desc:'Vytvoř 5 různých tras' },
+  // ── Vzdálenost ────────────────────────────────────────────
+  { id:'km_10',       icon:'🌱', name:'Prvních 10 km',      desc:'Najeď celkem 10 km' },
+  { id:'km_100',      icon:'💯', name:'100 km',             desc:'Najeď celkem 100 km' },
+  { id:'km_500',      icon:'🚀', name:'500 km',             desc:'Najeď celkem 500 km' },
+  { id:'km_1000',     icon:'🌍', name:'1 000 km',           desc:'Najeď celkem 1 000 km' },
+  { id:'km_5000',     icon:'🏔️', name:'5 000 km',           desc:'Najeď celkem 5 000 km' },
+  { id:'km_10000',    icon:'🌌', name:'10 000 km',          desc:'Najeď celkem 10 000 km' },
+  // ── Počet jízd ────────────────────────────────────────────
+  { id:'first_ride',  icon:'🎉', name:'První jízda',        desc:'Dokonči první jízdu' },
+  { id:'rides_5',     icon:'🖐️', name:'5 jízd',             desc:'Absolvuj 5 jízd' },
+  { id:'rides_10',    icon:'🔟', name:'10 jízd',            desc:'Absolvuj 10 jízd' },
+  { id:'rides_50',    icon:'⭐', name:'50 jízd',            desc:'Absolvuj 50 jízd' },
+  { id:'rides_100',   icon:'💎', name:'100 jízd',           desc:'Absolvuj 100 jízd' },
+  { id:'rides_365',   icon:'📅', name:'Rok na kole',        desc:'Absolvuj 365 jízd' },
+  // ── Osobní rekordy ────────────────────────────────────────
+  { id:'pb_new',      icon:'🏆', name:'Nový rekord',        desc:'Překonej osobní rekord' },
+  { id:'pb_5pct',     icon:'⚡', name:'Výrazné zlepšení',   desc:'PB o více než 5 % lepší než předchozí' },
+  { id:'all_cps',     icon:'✅', name:'Perfektní jízda',    desc:'Projdi všechny checkpointy v jedné jízdě' },
+  { id:'route_10x',   icon:'🔄', name:'Místní legenda',     desc:'Absolvuj stejnou trasu 10×' },
+  // ── Převýšení ─────────────────────────────────────────────
+  { id:'elev_1000',   icon:'⛰️', name:'Tisícovka',          desc:'1 000 m převýšení celkem' },
+  { id:'elev_10000',  icon:'🏔️', name:'Deset tisíc',        desc:'10 000 m převýšení celkem' },
+  { id:'elev_100000', icon:'🗻', name:'Everest × 11',       desc:'100 000 m převýšení celkem' },
+  // ── Čas dne ───────────────────────────────────────────────
+  { id:'early_bird',  icon:'🌅', name:'Ranní ptáče',        desc:'Dokonči jízdu před 7:00' },
+  { id:'night_rider', icon:'🌙', name:'Noční jezdec',       desc:'Dokonči jízdu po 22:00' },
+  { id:'midnight',    icon:'🦇', name:'Půlnoční rider',     desc:'Jízda dokončená mezi 0:00 a 4:00' },
+  { id:'new_year',    icon:'🎊', name:'Novoroční jezdec',   desc:'Jízda 1. ledna' },
+  // ── Série ─────────────────────────────────────────────────
+  { id:'streak_2w',   icon:'📆', name:'2 týdny v řadě',    desc:'Jeď alespoň 2 týdny za sebou' },
+  { id:'streak_4w',   icon:'🔥', name:'4 týdny v řadě',    desc:'Jeď alespoň 4 týdny za sebou' },
+  { id:'streak_8w',   icon:'💪', name:'2 měsíce v řadě',   desc:'Jeď alespoň 8 týdnů za sebou' },
+  { id:'streak_12w',  icon:'🏅', name:'3 měsíce v řadě',   desc:'Jeď alespoň 12 týdnů za sebou' },
+  // ── Trasy ─────────────────────────────────────────────────
+  { id:'first_route', icon:'✏️', name:'Tvůrce',             desc:'Vytvoř první trasu' },
+  { id:'routes_3',    icon:'🗺️', name:'3 trasy',            desc:'Vytvoř 3 různé trasy' },
+  { id:'routes_5',    icon:'🌐', name:'5 tras',             desc:'Vytvoř 5 různých tras' },
+  { id:'routes_10',   icon:'🧭', name:'10 tras',            desc:'Vytvoř 10 různých tras' },
+  { id:'gpx_import',  icon:'📁', name:'GPS Průzkumník',     desc:'Importuj alespoň jednu GPX trasu' },
+  { id:'century',     icon:'🎽', name:'Centurie',           desc:'Trasa o délce 100+ km' },
+  // ── Výkonnost ─────────────────────────────────────────────
+  { id:'sub30',       icon:'⚡', name:'Blesk',              desc:'Dokonči libovolnou jízdu pod 30 minut' },
+  { id:'session_1h',  icon:'⏱️', name:'Hodinář',            desc:'Jízda delší než 1 hodina' },
+  { id:'session_3h',  icon:'🦅', name:'Vytrvalec',          desc:'Jízda delší než 3 hodiny' },
+  // ── Odhodlání ─────────────────────────────────────────────
+  { id:'two_in_day',  icon:'🌟', name:'Dvojitý výkon',      desc:'2 jízdy v jeden den' },
+  { id:'iron_week',   icon:'🦾', name:'Železný týden',      desc:'5 jízd za 7 dní' },
+  { id:'comeback',    icon:'🔙', name:'Comeback',           desc:'Jízda po 30+ dnech pauzy' },
+  { id:'monthly_goal',icon:'🎯', name:'Cíl splněn',         desc:'Dosáhni měsíčního cíle km' },
+  { id:'garage_bike', icon:'🔧', name:'Mechanik',           desc:'Přidej první kolo do garáže' },
 ];  // activity being imported as new route
 let ghostPbMs = 0;  // PB time for ghost comparison
 
@@ -865,7 +904,7 @@ function updateRideUI() {
     document.getElementById('s-eta').textContent  = fmtTime(remain*pace*60000);
   }
 
-  // PB card
+  // PB card (compact, in meta row)
   const pb = r.records?.length ? r.records[0] : null;
   if (pb && lastHit) {
     const ci = rs.cps.indexOf(lastHit);
@@ -873,10 +912,43 @@ function updateRideUI() {
     if (pbCp?.hitTime != null) {
       const diff = lastHit.hitTime - pbCp.hitTime;
       const el = document.getElementById('s-pb');
-      el.style.color = diff<=0 ? 'var(--green)' : 'var(--red)';
-      el.textContent = (diff<=0?'▲ ':'▼ +') + fmtTime(Math.abs(diff));
+      if (el) { el.style.color = diff<=0 ? 'var(--green)' : 'var(--red)'; el.textContent = (diff<=0?'▲ ':'▼ +') + fmtTime(Math.abs(diff)); }
     }
   }
+
+  // Live Delta vs PB — prominent display below timer
+  const rldContainer = document.getElementById('ride-live-delta');
+  const rldVal = document.getElementById('rld-val');
+  if (rldContainer && rldVal && pb?.checkpoints?.length) {
+    let deltaMs = null;
+    if (rs.finished) {
+      deltaMs = rs.elapsed - pb.totalMs;
+    } else if (rs.cpIdx > 0) {
+      const lastIdx = rs.cpIdx - 1;
+      const myT = rs.cps[lastIdx]?.hitTime;
+      const pbT = pb.checkpoints[lastIdx]?.hitTime;
+      if (myT != null && pbT != null) {
+        const baseD = myT - pbT;
+        // Growing penalty only if we already exceed PB's current segment time
+        const segElapsed = rs.elapsed - myT;
+        const pbNextT = rs.cpIdx < pb.checkpoints.length ? pb.checkpoints[rs.cpIdx]?.hitTime : pb.totalMs;
+        const pbSeg = (pbNextT || pb.totalMs) - pbT;
+        deltaMs = baseD + Math.max(0, segElapsed - pbSeg);
+      }
+    }
+    if (deltaMs !== null) {
+      rldContainer.style.display = 'flex';
+      const ahead = deltaMs <= 500; // within 0.5s counts as "even"
+      const cls = Math.abs(deltaMs) < 1000 ? 'even' : (deltaMs < 0 ? 'ahead' : 'behind');
+      rldVal.className = 'rld-val ' + cls;
+      rldVal.textContent = (deltaMs <= 0 ? '−' : '+') + fmtTime(Math.abs(deltaMs));
+    } else {
+      rldContainer.style.display = 'none';
+    }
+  } else if (rldContainer) {
+    rldContainer.style.display = 'none';
+  }
+
   // Throttle TV board: update at most twice per second (smooth drop effect)
   if (rs._tvLastUpdate < 0 || (rs.elapsed - rs._tvLastUpdate) >= 500) {
     rs._tvLastUpdate = rs.elapsed;
@@ -1402,6 +1474,7 @@ function saveRecord(ms) {
     date: new Date().toISOString(),
     routeIdx: viewIdx,
     routeName: routes[viewIdx].name,
+    distKm: routes[viewIdx].totalDist || 0,
     checkpoints: rs.cps.map(c=>({ km:c.km, name:c.name, hitTime:c.hitTime, splitMs:c.splitMs }))
   };
   const r = routes[viewIdx];
@@ -1424,7 +1497,8 @@ function saveRecord(ms) {
   }
 
   // Check global achievements
-  checkAchievements({ isNewPB, justFinishedAt: new Date() });
+  const allCPsHit = rs.cps.length > 0 && rs.cps.every(cp => cp.hitTime !== null);
+  checkAchievements({ isNewPB, justFinishedAt: new Date(), allCPsHit });
 }
 
 function showResults(ms) {
@@ -3027,14 +3101,18 @@ function deleteGoal(type) {
 // ════════════════════════════════════════════════
 //  ACHIEVEMENTS
 // ════════════════════════════════════════════════
-function checkAchievements({ isNewPB = false, justFinishedAt = null } = {}) {
+function checkAchievements({ isNewPB = false, justFinishedAt = null, allCPsHit = false } = {}) {
   const allRecs = routes.flatMap(r => r.records || []);
-  const totalKm = allRecs.reduce((s, r) => s + (r.distKm || 0), 0);
+  // totalKm: prefer stored distKm, fall back to route totalDist
+  const totalKm = allRecs.reduce((s, rec) => {
+    if (rec.distKm) return s + rec.distKm;
+    const route = routes.find((r, i) => i === rec.routeIdx) || routes.find(r => r.name === rec.routeName);
+    return s + (route?.totalDist || 0);
+  }, 0);
   const totalRides = allRecs.length;
   const earnedIds = new Set(achievements.map(a => a.id));
   const now = new Date().toISOString();
   const newOnes = [];
-
   const earn = (id) => {
     if (!earnedIds.has(id)) {
       achievements.push({ id, earnedAt: now });
@@ -3043,24 +3121,90 @@ function checkAchievements({ isNewPB = false, justFinishedAt = null } = {}) {
     }
   };
 
-  if (totalRides >= 1)  earn('first_ride');
+  // ── Vzdálenost
+  if (totalKm >= 10)    earn('km_10');
   if (totalKm >= 100)   earn('km_100');
   if (totalKm >= 500)   earn('km_500');
   if (totalKm >= 1000)  earn('km_1000');
-  if (totalRides >= 10) earn('rides_10');
-  if (totalRides >= 50) earn('rides_50');
+  if (totalKm >= 5000)  earn('km_5000');
+  if (totalKm >= 10000) earn('km_10000');
+
+  // ── Počet jízd
+  if (totalRides >= 1)   earn('first_ride');
+  if (totalRides >= 5)   earn('rides_5');
+  if (totalRides >= 10)  earn('rides_10');
+  if (totalRides >= 50)  earn('rides_50');
+  if (totalRides >= 100) earn('rides_100');
+  if (totalRides >= 365) earn('rides_365');
+
+  // ── Osobní rekordy
   if (isNewPB) earn('pb_new');
-  if (computeStreak() >= 4) earn('streak_4w');
-  if (routes.length >= 5)  earn('routes_5');
+  if (routes.some(r => (r.records?.length || 0) >= 2 && r.records[0].totalMs < r.records[1].totalMs * 0.95)) earn('pb_5pct');
+  if (allCPsHit) earn('all_cps');
+  if (routes.some(r => (r.records?.length || 0) >= 10)) earn('route_10x');
+
+  // ── Převýšení (sum: route.totalElev × počet jízd na trase)
+  const totalElev = routes.reduce((s, r) => s + (r.totalElev || 0) * (r.records?.length || 0), 0);
+  if (totalElev >= 1000)   earn('elev_1000');
+  if (totalElev >= 10000)  earn('elev_10000');
+  if (totalElev >= 100000) earn('elev_100000');
+
+  // ── Čas dne (aktuální jízda)
   if (justFinishedAt) {
     const h = justFinishedAt.getHours();
     if (h < 7)  earn('early_bird');
     if (h >= 22) earn('night_rider');
+    if (h < 4)  earn('midnight');
+    if (justFinishedAt.getMonth() === 0 && justFinishedAt.getDate() === 1) earn('new_year');
   }
+
+  // ── Série
+  const streak = computeStreak();
+  if (streak >= 2)  earn('streak_2w');
+  if (streak >= 4)  earn('streak_4w');
+  if (streak >= 8)  earn('streak_8w');
+  if (streak >= 12) earn('streak_12w');
+
+  // ── Trasy
+  if (routes.length >= 1)  earn('first_route');
+  if (routes.length >= 3)  earn('routes_3');
+  if (routes.length >= 5)  earn('routes_5');
+  if (routes.length >= 10) earn('routes_10');
+  if (routes.some(r => r.type === 'gpx' || r.type === 'strava')) earn('gpx_import');
+  if (routes.some(r => (r.totalDist || 0) >= 100)) earn('century');
+
+  // ── Výkonnost
+  if (allRecs.some(rec => rec.totalMs < 30 * 60 * 1000))     earn('sub30');
+  if (allRecs.some(rec => rec.totalMs >= 60 * 60 * 1000))    earn('session_1h');
+  if (allRecs.some(rec => rec.totalMs >= 3 * 60 * 60 * 1000)) earn('session_3h');
+
+  // ── Datové výzvy (podle uloženého rec.date)
+  const recDates = allRecs.map(rec => rec.date ? new Date(rec.date) : null).filter(Boolean);
+  // 2 jízdy v jeden den
+  const dayMap = {};
+  recDates.forEach(d => { const k = d.toISOString().slice(0,10); dayMap[k] = (dayMap[k]||0)+1; });
+  if (Object.values(dayMap).some(n => n >= 2)) earn('two_in_day');
+  // 5 jízd za 7 dní
+  const recTs = recDates.map(d => d.getTime()).sort((a,b)=>a-b);
+  if (recTs.some((t,i) => recTs.filter(t2 => t2 >= t && t2 <= t + 7*86400000).length >= 5)) earn('iron_week');
+  // Comeback: mezera 30+ dní
+  if (recTs.some((t,i) => i > 0 && t - recTs[i-1] >= 30*86400000)) earn('comeback');
+
+  // ── Měsíční cíl
+  const mnthStart = new Date(); mnthStart.setDate(1); mnthStart.setHours(0,0,0,0);
+  const mnthKm = allRecs.filter(rec => rec.date && new Date(rec.date) >= mnthStart)
+    .reduce((s, rec) => {
+      if (rec.distKm) return s + rec.distKm;
+      const route = routes.find((r,i) => i === rec.routeIdx);
+      return s + (route?.totalDist || 0);
+    }, 0);
+  if (appSettings.monthlyGoalKm > 0 && mnthKm >= appSettings.monthlyGoalKm) earn('monthly_goal');
+
+  // ── Garáž
+  if (bikes.length > 0) earn('garage_bike');
 
   if (newOnes.length > 0) {
     localStorage.setItem('vt_achievements', JSON.stringify(achievements));
-    // Show popup for each new achievement
     newOnes.forEach((id, i) => {
       const def = ACHIEVEMENT_DEFS.find(d => d.id === id);
       if (def) setTimeout(() => showAchievement(def.icon, def.name), i * 1200);
